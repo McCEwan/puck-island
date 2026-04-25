@@ -31,6 +31,11 @@ const NHLApi = {
     return res.json();
   },
 
+  async getPlayerStats() {
+    const res = await fetch('/api/playerstats');
+    return res.json();
+  },
+
   async getRoster(teamAbbr: string) {
     const res = await fetch(`/api/roster/${teamAbbr}`);
     const data = await res.json();
@@ -90,9 +95,11 @@ export default function PuckIsland() {
   const [page, setPage] = useState("home");
 
   // ── Players page ──
-  const [query,      setQuery]      = useState("");
-  const [teamFilter, setTeamFilter] = useState("ALL");
-  const [sortKey,    setSortKey]    = useState("pts");
+  const [query,       setQuery]       = useState("");
+  const [teamFilter,  setTeamFilter]  = useState("ALL");
+  const [sortKey,     setSortKey]     = useState("pts");
+  const [statSortKey, setStatSortKey] = useState("pts");
+  const [statSortDir, setStatSortDir] = useState("desc");
 
   // ── Enriched static players (stable reference, computed once) ──
   const enrichedPlayers = useMemo(() =>
@@ -110,11 +117,12 @@ export default function PuckIsland() {
   const [compareB,       setCompareB]       = useState(enrichedPlayers[1]);
 
   // ── Real NHL data ──
-  const [standings,  setStandings]  = useState([]);
-  const [rosters,    setRosters]    = useState({});
-  const [dbTeams,    setDbTeams]    = useState([]);
-  const [dbPlayers,  setDbPlayers]  = useState([]);
-  const [loadingMsg, setLoadingMsg] = useState("Connecting to NHL API…");
+  const [standings,   setStandings]   = useState([]);
+  const [rosters,     setRosters]     = useState({});
+  const [dbTeams,     setDbTeams]     = useState([]);
+  const [dbPlayers,   setDbPlayers]   = useState([]);
+  const [playerStats, setPlayerStats] = useState([]);
+  const [loadingMsg,  setLoadingMsg]  = useState("Connecting to NHL API…");
 
   useEffect(() => {
     async function loadNHLData() {
@@ -139,6 +147,9 @@ export default function PuckIsland() {
           })
         );
         setRosters(Object.fromEntries(rosterEntries));
+
+        const stats = await NHLApi.getPlayerStats();
+        setPlayerStats(stats);
         setLoadingMsg("Live NHL data loaded ✓");
       } catch (err) {
         setLoadingMsg("API error — showing cached data");
@@ -172,6 +183,30 @@ export default function PuckIsland() {
     ).filter(Boolean),
     [standings, dbTeams]
   );
+
+  const sortedStats = useMemo(() => {
+    return [...playerStats]
+      .filter(p => p.players)
+      .map(p => ({
+        id:       p.player_id,
+        name:     p.players.full_name,
+        team:     p.players.current_team_id?.toUpperCase() ?? '—',
+        position: p.players.position ?? '—',
+        gp:       p.gp,
+        g:        p.g,
+        a:        p.a,
+        pts:      p.pts,
+        shots:    p.shots,
+        shPct:    p.shots > 0 ? Number(((p.g / p.shots) * 100).toFixed(1)) : 0,
+        ppg:      p.gp > 0 ? Number((p.pts / p.gp).toFixed(2)) : 0,
+        rating:   p.gp > 0 ? Math.round(((p.pts/p.gp)*45 + (p.g/p.gp)*25 + (p.shots/p.gp)*5) * 10) / 10 : 0,
+      }))
+      .filter(p => p.gp > 0)
+      .sort((a, b) => {
+        const dir = statSortDir === 'desc' ? -1 : 1;
+        return (Number(a[statSortKey]) - Number(b[statSortKey])) * dir;
+      });
+  }, [playerStats, statSortKey, statSortDir]);
 
   // ── Derived for player detail page ──
   const trendData = selectedPlayer.trend.map((v, i) => ({ game: `G${i + 1}`, points: v }));
