@@ -167,10 +167,10 @@ export default function PuckIsland() {
   );
 
   const featuredStandings = useMemo(() =>
-    FEATURED_TEAMS.map((abbr) =>
-      standings.find((s) => s.teamAbbrev?.default === abbr)
+    dbTeams.map((t) =>
+      standings.find((s) => s.teamAbbrev?.default === t.abbreviation)
     ).filter(Boolean),
-    [standings]
+    [standings, dbTeams]
   );
 
   // ── Derived for player detail page ──
