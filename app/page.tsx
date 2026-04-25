@@ -149,6 +149,7 @@ export default function PuckIsland() {
         setRosters(Object.fromEntries(rosterEntries));
 
         const stats = await NHLApi.getPlayerStats();
+        console.log('Player Stats:', stats);
         setPlayerStats(stats);
         setLoadingMsg("Live NHL data loaded ✓");
       } catch (err) {
@@ -347,43 +348,61 @@ export default function PuckIsland() {
         {/* ══════════════ PLAYERS LIST ══════════════ */}
         {page === "players" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-            <PageTitle title="Player Explorer" sub="Search, filter, and sort NHL player season stats." />
-            {/* Controls */}
-            <div className="card" style={{ padding: 16, display: "grid", gridTemplateColumns: "1fr 160px 180px", gap: 12 }}>
-              <div style={{ position: "relative" }}>
-                <Search size={16} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#475569" }} />
-                <input value={query} onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search players or teams…" style={{ width: "100%", paddingLeft: 36 }} />
-              </div>
-              <select value={teamFilter} onChange={(e) => setTeamFilter(e.target.value)}>
-                <option value="ALL">All Teams</option>
-                {FEATURED_TEAMS.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
-              <select value={sortKey} onChange={(e) => setSortKey(e.target.value)}>
-                <option value="pts">Sort: Points</option>
-                <option value="g">Sort: Goals</option>
-                <option value="a">Sort: Assists</option>
-                <option value="rating">Sort: Rating</option>
-                <option value="shots">Sort: Shots</option>
-              </select>
-            </div>
-            {/* Table */}
+            <PageTitle title="Player Explorer" sub={`${sortedStats.length} players — click any column to sort`} />
             <div className="card" style={{ overflow: "hidden" }}>
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
                   <thead>
                     <tr style={{ background: "#111c2d", color: "#64748b", textAlign: "left" }}>
-                      {["Player","Team","Pos","GP","G","A","PTS","Shots","SH%","PPG","Rating"].map((h) => (
-                        <th key={h} style={{ padding: "12px 16px", fontWeight: 600, fontSize: 12, textTransform: "uppercase", letterSpacing: ".06em" }}>{h}</th>
+                      {[
+                        { label: "Player",   key: null },
+                        { label: "Team",     key: null },
+                        { label: "Pos",      key: null },
+                        { label: "GP",       key: "gp" },
+                        { label: "G",        key: "g" },
+                        { label: "A",        key: "a" },
+                        { label: "PTS",      key: "pts" },
+                        { label: "Shots",    key: "shots" },
+                        { label: "SH%",      key: "shPct" },
+                        { label: "PPG",      key: "ppg" },
+                        { label: "Rating",   key: "rating" },
+                      ].map(({ label, key }) => (
+                        <th
+                          key={label}
+                          onClick={() => {
+                            if (!key) return;
+                            if (statSortKey === key) {
+                              setStatSortDir(statSortDir === "desc" ? "asc" : "desc");
+                            } else {
+                              setStatSortKey(key);
+                              setStatSortDir("desc");
+                            }
+                          }}
+                          style={{
+                            padding: "12px 16px",
+                            fontWeight: 600,
+                            fontSize: 12,
+                            textTransform: "uppercase",
+                            letterSpacing: ".06em",
+                            cursor: key ? "pointer" : "default",
+                            color: statSortKey === key ? "#22d3ee" : "#64748b",
+                            userSelect: "none",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {label} {statSortKey === key ? (statSortDir === "desc" ? "↓" : "↑") : ""}
+                        </th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredPlayers.map((p) => (
-                      <tr key={p.id} className="tr-hover"
-                        onClick={() => { setSelectedPlayer(p); setPage("player"); }}
-                        style={{ borderTop: "1px solid #1e2d40" }}>
-                        <td style={{ padding: "14px 16px", fontWeight: 700 }}>{p.name}</td>
+                    {sortedStats.slice(0, 100).map((p) => (
+                      <tr
+                        key={p.id}
+                        className="tr-hover"
+                        style={{ borderTop: "1px solid #1e2d40" }}
+                      >
+                        <td style={{ padding: "13px 16px", fontWeight: 700 }}>{p.name}</td>
                         <td style={{ color: "#64748b" }}>{p.team}</td>
                         <td style={{ color: "#64748b" }}>{p.position}</td>
                         <td>{p.gp}</td>
@@ -396,9 +415,6 @@ export default function PuckIsland() {
                         <td><span className="pill"><Star size={11} />{p.rating}</span></td>
                       </tr>
                     ))}
-                    {filteredPlayers.length === 0 && (
-                      <tr><td colSpan={11} style={{ padding: 40, textAlign: "center", color: "#475569" }}>No players match your filters.</td></tr>
-                    )}
                   </tbody>
                 </table>
               </div>
