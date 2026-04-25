@@ -21,6 +21,16 @@ const NHLApi = {
     return data.standings ?? [];
   },
 
+  async getTeams() {
+    const res = await fetch('/api/teams');
+    return res.json();
+  },
+
+  async getPlayers() {
+    const res = await fetch('/api/players');
+    return res.json();
+  },
+
   async getRoster(teamAbbr: string) {
     const res = await fetch(`/api/roster/${teamAbbr}`);
     const data = await res.json();
@@ -100,19 +110,28 @@ export default function PuckIsland() {
   const [compareB,       setCompareB]       = useState(enrichedPlayers[1]);
 
   // ── Real NHL data ──
-  const [standings, setStandings]   = useState([]);
-  const [rosters,   setRosters]     = useState({});   // { TOR: [...], EDM: [...], ... }
+  const [standings,  setStandings]  = useState([]);
+  const [rosters,    setRosters]    = useState({});
+  const [dbTeams,    setDbTeams]    = useState([]);
+  const [dbPlayers,  setDbPlayers]  = useState([]);
   const [loadingMsg, setLoadingMsg] = useState("Connecting to NHL API…");
 
   useEffect(() => {
     async function loadNHLData() {
       try {
-        // Standings
+        // Load from Supabase
+        const dbTeams = await NHLApi.getTeams();
+        const dbPlayers = await NHLApi.getPlayers();
+        console.log('DB Teams:', dbTeams);
+        console.log('DB Players:', dbPlayers);
+        setDbTeams(dbTeams);
+        setDbPlayers(dbPlayers);
+
+        // Load live NHL data
         const raw = await NHLApi.getStandings();
         setStandings(raw);
         setLoadingMsg("Standings loaded. Fetching rosters…");
 
-        // Rosters for featured teams (parallel)
         const rosterEntries = await Promise.all(
           FEATURED_TEAMS.map(async (abbr) => {
             const players = await NHLApi.getRoster(abbr);
