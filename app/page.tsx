@@ -241,13 +241,14 @@ export default function PuckIsland() {
       .filter(p => p.position !== 'G')
       .sort((a, b) => {
         if (sortKey === 'offensePercentile' || sortKey === 'defensePercentile' || sortKey === 'overallPercentile') {
-          const aVal = a[sortKey] ?? -1;
-          const bVal = b[sortKey] ?? -1;
+          const aVal = (a as any)[sortKey] ?? -1;
+          const bVal = (b as any)[sortKey] ?? -1;
           return bVal - aVal;
         }
-        return Number(b[sortKey]) - Number(a[sortKey]);
+        const dir = statSortDir === 'desc' ? -1 : 1;
+        return (Number((a as any)[sortKey]) - Number((b as any)[sortKey])) * dir;
       });
-  }, [playerStats, statSortKey, statSortDir, listPercentiles, sortKey]);
+  }, [playerStats, sortKey, statSortKey, statSortDir, listPercentiles]);
 
   // ── Derived for player detail page ──
   const trendData = selectedPlayer.trend.map((v, i) => ({ game: `G${i + 1}`, points: v }));
@@ -411,10 +412,10 @@ export default function PuckIsland() {
                           key={label}
                           onClick={() => {
                             if (!key) return;
-                            if (statSortKey === key) {
+                            if (sortKey === key) {
                               setStatSortDir(statSortDir === "desc" ? "asc" : "desc");
                             } else {
-                              setStatSortKey(key);
+                              setSortKey(key);
                               setStatSortDir("desc");
                             }
                           }}
@@ -425,12 +426,12 @@ export default function PuckIsland() {
                             textTransform: "uppercase",
                             letterSpacing: ".06em",
                             cursor: key ? "pointer" : "default",
-                            color: statSortKey === key ? "#22d3ee" : "#64748b",
+                            color: sortKey === key ? "#22d3ee" : "#64748b",
                             userSelect: "none",
                             whiteSpace: "nowrap",
                           }}
                         >
-                          {label} {statSortKey === key ? (statSortDir === "desc" ? "↓" : "↑") : ""}
+                          {label} {sortKey === key ? (statSortDir === "desc" ? "↓" : "↑") : ""}
                         </th>
                       ))}
                     </tr>
