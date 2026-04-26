@@ -100,6 +100,7 @@ export default function PuckIsland() {
   // ── Players page ──
   const [query,       setQuery]       = useState("");
   const [teamFilter,  setTeamFilter]  = useState("ALL");
+  const [posFilter,   setPosFilter]   = useState("ALL");
   const [sortKey,     setSortKey]     = useState("pts");
   const [statSortKey,    setStatSortKey]    = useState("pts");
   const [statSortDir,    setStatSortDir]    = useState("desc");
@@ -239,16 +240,19 @@ export default function PuckIsland() {
       }))
       .filter(p => p.gp > 0)
       .filter(p => p.position !== 'G')
+      .filter(p => teamFilter === 'ALL' || p.team === teamFilter)
+      .filter(p => posFilter  === 'ALL' || p.position === posFilter)
+      .filter(p => query === '' || p.name.toLowerCase().includes(query.toLowerCase()))
       .sort((a, b) => {
+        const dir = statSortDir === 'desc' ? -1 : 1;
         if (sortKey === 'offensePercentile' || sortKey === 'defensePercentile' || sortKey === 'overallPercentile') {
           const aVal = (a as any)[sortKey] ?? -1;
           const bVal = (b as any)[sortKey] ?? -1;
-          return bVal - aVal;
+          return (bVal - aVal) * dir;
         }
-        const dir = statSortDir === 'desc' ? -1 : 1;
         return (Number((a as any)[sortKey]) - Number((b as any)[sortKey])) * dir;
       });
-  }, [playerStats, sortKey, statSortKey, statSortDir, listPercentiles]);
+  }, [playerStats, sortKey, statSortKey, statSortDir, listPercentiles, query, teamFilter, posFilter]);
 
   // ── Derived for player detail page ──
   const trendData = selectedPlayer.trend.map((v, i) => ({ game: `G${i + 1}`, points: v }));
@@ -363,12 +367,36 @@ export default function PuckIsland() {
         {page === "players" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
             <PageTitle title="Player Explorer" sub={`${sortedStats.length} players — click any column to sort`} />
-            <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
-              <select
-                value={selectedSeason}
-                onChange={(e) => setSelectedSeason(e.target.value)}
-                style={{ width: 160 }}
-              >
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+              {/* Search */}
+              <div style={{ position: "relative" }}>
+                <Search size={15} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#475569", pointerEvents: "none" }} />
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search players…"
+                  style={{ paddingLeft: 34, width: 200 }}
+                />
+              </div>
+              {/* Team */}
+              <select value={teamFilter} onChange={(e) => setTeamFilter(e.target.value)} style={{ width: 140 }}>
+                <option value="ALL">All Teams</option>
+                {[...new Set(dbTeams.map((t: any) => t.abbreviation))].sort().map((abbr: any) => (
+                  <option key={abbr} value={abbr}>{abbr}</option>
+                ))}
+              </select>
+              {/* Position */}
+              <select value={posFilter} onChange={(e) => setPosFilter(e.target.value)} style={{ width: 140 }}>
+                <option value="ALL">All Positions</option>
+                <option value="C">Centre</option>
+                <option value="L">Left Wing</option>
+                <option value="LW">Left Wing (LW)</option>
+                <option value="R">Right Wing</option>
+                <option value="RW">Right Wing (RW)</option>
+                <option value="D">Defence</option>
+              </select>
+              {/* Season */}
+              <select value={selectedSeason} onChange={(e) => setSelectedSeason(e.target.value)} style={{ width: 120 }}>
                 {[
                   '2025-26','2024-25','2023-24','2022-23','2021-22','2020-21',
                   '2019-20','2018-19','2017-18','2016-17','2015-16','2014-15',
@@ -378,7 +406,8 @@ export default function PuckIsland() {
                   <option key={s} value={s}>{s}</option>
                 ))}
               </select>
-              <select value={sortKey} onChange={(e) => setSortKey(e.target.value)} style={{ width: 200 }}>
+              {/* Sort */}
+              <select value={sortKey} onChange={(e) => { setSortKey(e.target.value); setStatSortDir("desc"); }} style={{ width: 200 }}>
                 <option value="pts">Sort: Points</option>
                 <option value="g">Sort: Goals</option>
                 <option value="a">Sort: Assists</option>
