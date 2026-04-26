@@ -39,10 +39,13 @@ export default function PlayerDetailPage() {
       ]);
       const playerData  = await playerRes.json();
       const statsData   = await statsRes.json();
-      const ratingsData = await ratingsRes.json();
       setPlayer(playerData);
       setStats(statsData);
-      setRatings(ratingsData);
+      if (ratingsRes.ok) {
+        setRatings(await ratingsRes.json());
+      } else {
+        setRatings(null);
+      }
 
       // Fetch percentiles for each season with enough games
       const seasonIds = statsData
@@ -52,7 +55,7 @@ export default function PlayerDetailPage() {
       const pctResults = await Promise.all(
         seasonIds.map((sid: string) =>
           fetch(`/api/players/${id}/ratings?season=${sid}`)
-            .then(r => r.json())
+            .then(r => r.ok ? r.json() : null)
             .then(d => [sid, {
               overall: d?.percentiles?.overall ?? null,
               offense: d?.percentiles?.offense ?? null,
