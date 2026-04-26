@@ -60,7 +60,8 @@ export async function GET(req: Request) {
     // ── Defense arrays (MoneyPuck) ──
     const groupMP = group
       .map(s => mpMap.get(s.player_id))
-      .filter(Boolean);
+      .filter(Boolean)
+      .filter((s: any) => s.icetime >= 200);
 
     const hasMP = groupMP.length > 10;
 
@@ -157,6 +158,12 @@ export async function GET(req: Request) {
 
   const fwdRatings = calcGroupRatings(forwards);
   const defRatings = calcGroupRatings(defensemen);
+
+  const defenseValues = Object.values(fwdRatings).map(r => r.defense).filter(v => v !== null).sort((a, b) => b - a);
+  const offenseValues = Object.values(fwdRatings).map(r => r.offense).sort((a, b) => b - a);
+  console.log('Top 5 defense:', defenseValues.slice(0, 5));
+  console.log('Top 5 offense:', offenseValues.slice(0, 5));
+  console.log('Pool size fwd:', forwards.length, 'def:', defensemen.length);
 
   return Response.json({ ...fwdRatings, ...defRatings });
 }
