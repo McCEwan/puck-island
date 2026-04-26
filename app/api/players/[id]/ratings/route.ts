@@ -19,6 +19,9 @@ export async function GET(_req: NextRequest, ctx: RouteContext<'/api/players/[id
 
   const isD = player.position === 'D';
 
+  const { searchParams } = new URL(_req.url);
+  const season = searchParams.get('season') ?? '2025-26';
+
   const { data: allStats } = await supabase
     .from('player_season_stats')
     .select(`
@@ -27,7 +30,7 @@ export async function GET(_req: NextRequest, ctx: RouteContext<'/api/players/[id
       players!inner (position)
     `)
     .neq('players.position', 'G')
-    .eq('season_id', '2024-25')
+    .eq('season_id', season)
     .gt('gp', 20);
 
   if (!allStats) return Response.json({ error: 'No stats' }, { status: 500 });

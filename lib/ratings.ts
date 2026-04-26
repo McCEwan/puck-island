@@ -48,8 +48,8 @@ export function calcPlayerRatings(
   const pk  = get('4on5');
 
   // Minimum thresholds (icetime in minutes)
-  const ppEligible = !!pp && (pp.icetime / (v5?.games_played || 1)) >= 1.0;
-  const pkEligible = !!pk && (pk.icetime / (v5?.games_played || 1)) >= 0.75;
+  const ppEligible = !!pp && (pp.icetime / (v5?.games_played || 1)) >= 0.5;
+  const pkEligible = !!pk && (pk.icetime / (v5?.games_played || 1)) >= 0.5;
 
   // Build percentile lookup arrays from all players
   function buildPctArray(sit: string, fn: (s: SituationStats) => number) {

@@ -21,20 +21,13 @@ function calcRating(gp, pts, g, shots) {
   return Math.round(((pts/gp)*45 + (g/gp)*25 + (shots/gp)*5) * 10) / 10;
 }
 
-function gradeFromRating(r) {
-  if (r >= 80) return { grade: 'S', color: '#f59e0b' };
-  if (r >= 60) return { grade: 'A', color: '#22d3ee' };
-  if (r >= 40) return { grade: 'B', color: '#4ade80' };
-  if (r >= 25) return { grade: 'C', color: '#94a3b8' };
-  return { grade: 'D', color: '#f87171' };
-}
-
 export default function PlayerDetailPage() {
   const { id } = useParams();
   const router = useRouter();
   const [player, setPlayer] = useState(null);
   const [stats, setStats] = useState([]);
   const [ratings, setRatings] = useState(null);
+  const [seasonPercentiles, setSeasonPercentiles] = useState({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -50,6 +43,20 @@ export default function PlayerDetailPage() {
       setPlayer(playerData);
       setStats(statsData);
       setRatings(ratingsData);
+
+      // Fetch percentiles for each season with enough games
+      const seasonIds = statsData
+        .filter((s) => s.gp >= 20)
+        .map((s) => s.season_id);
+
+      const pctResults = await Promise.all(
+        seasonIds.map((sid) =>
+          fetch(`/api/players/${id}/ratings?season=${sid}`)
+            .then(r => r.json())
+            .then(d => [sid, d?.percentiles?.overall ?? null])
+        )
+      );
+      setSeasonPercentiles(Object.fromEntries(pctResults.filter(([, v]) => v !== null)));
       setLoading(false);
     }
     load();
@@ -72,10 +79,12 @@ export default function PlayerDetailPage() {
     .filter(Boolean)
     .filter(s => s.gp > 0);
 
-  const chartData = orderedStats.map(s => ({
-    season: s.season_id.slice(0, 4),
-    Rating: calcRating(s.gp, s.pts, s.g, s.shots),
-  }));
+  const chartData = orderedStats
+    .filter(s => seasonPercentiles[s.season_id] !== undefined)
+    .map(s => ({
+      season: s.season_id.slice(0, 4),
+      Percentile: seasonPercentiles[s.season_id],
+    }));
 
   const bestSeason = orderedStats.reduce((best, s) =>
     s.pts > (best?.pts ?? 0) ? s : best, null);
@@ -84,10 +93,6 @@ export default function PlayerDetailPage() {
   const careerG   = orderedStats.reduce((sum, s) => sum + s.g, 0);
   const careerA   = orderedStats.reduce((sum, s) => sum + s.a, 0);
   const careerPTS = orderedStats.reduce((sum, s) => sum + s.pts, 0);
-
-  const latestSeason = orderedStats[orderedStats.length - 1];
-  const rating = latestSeason ? calcRating(latestSeason.gp, latestSeason.pts, latestSeason.g, latestSeason.shots) : 0;
-  const { grade, color: gradeColor } = gradeFromRating(rating);
 
   return (
     <div style={{ minHeight: "100vh", background: "#060b14", color: "#e2e8f0", fontFamily: "'DM Sans', sans-serif" }}>
@@ -112,26 +117,19 @@ export default function PlayerDetailPage() {
       <main style={{ maxWidth: 1100, margin: "0 auto", padding: "32px 32px 80px", display: "flex", flexDirection: "column", gap: 24 }}>
 
         {/* Player Card Header */}
-        <div className="card" style={{ padding: 32, display: "grid", gridTemplateColumns: "1fr auto", gap: 24, alignItems: "start" }}>
-          <div>
-            <div style={{ fontSize: 12, color: "#64748b", textTransform: "uppercase", letterSpacing: ".1em", marginBottom: 8 }}>
-              {player.position} · {player.current_team_id?.toUpperCase() ?? "—"}
-            </div>
-            <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 56, letterSpacing: ".04em", lineHeight: 1, marginBottom: 12 }}>
-              {player.full_name}
-            </div>
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-              <span className="pill">Career GP: {careerGP}</span>
-              <span className="pill">Career G: {careerG}</span>
-              <span className="pill">Career A: {careerA}</span>
-              <span className="pill">Career PTS: {careerPTS}</span>
-              {careerGP > 0 && <span className="pill">Career PPG: {(careerPTS / careerGP).toFixed(2)}</span>}
-            </div>
+        <div className="card" style={{ padding: 32 }}>
+          <div style={{ fontSize: 12, color: "#64748b", textTransform: "uppercase", letterSpacing: ".1em", marginBottom: 8 }}>
+            {player.position} · {player.current_team_id?.toUpperCase() ?? "—"}
           </div>
-          <div style={{ textAlign: "center", background: "#111c2d", borderRadius: 16, padding: "20px 28px" }}>
-            <div style={{ fontSize: 11, color: "#64748b", marginBottom: 4, textTransform: "uppercase", letterSpacing: ".08em" }}>Grade</div>
-            <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 72, color: gradeColor, lineHeight: 1 }}>{grade}</div>
-            <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>Rating: {rating}</div>
+          <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 56, letterSpacing: ".04em", lineHeight: 1, marginBottom: 12 }}>
+            {player.full_name}
+          </div>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            <span className="pill">Career GP: {careerGP}</span>
+            <span className="pill">Career G: {careerG}</span>
+            <span className="pill">Career A: {careerA}</span>
+            <span className="pill">Career PTS: {careerPTS}</span>
+            {careerGP > 0 && <span className="pill">Career PPG: {(careerPTS / careerGP).toFixed(2)}</span>}
           </div>
         </div>
 
@@ -142,7 +140,7 @@ export default function PlayerDetailPage() {
               Player Ratings
             </div>
             <div style={{ fontSize: 12, color: "#64748b", marginBottom: 24 }}>
-              Percentile rank among {ratings.positionGroup} ({ratings.groupSize} qualified players · min 20 GP)
+              Percentile rank among {ratings.positionGroup} · {ratings.groupSize} qualified players · min 20 GP
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               {[
@@ -188,23 +186,24 @@ export default function PlayerDetailPage() {
         {chartData.length > 1 && (
           <div className="card" style={{ padding: 28 }}>
             <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginBottom: 4 }}>
-              Rating Per Season
+              Percentile Rank Per Season
             </div>
             <div style={{ fontSize: 12, color: "#64748b", marginBottom: 20 }}>
-              Overall rating out of 100 — higher is better
+              Overall percentile among {ratings?.positionGroup ?? "skaters"} · min 20 GP
             </div>
             <ResponsiveContainer width="100%" height={260}>
               <LineChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e2d40" />
                 <XAxis dataKey="season" tick={{ fill: "#64748b", fontSize: 11 }} />
-                <YAxis domain={[0, 100]} tick={{ fill: "#64748b", fontSize: 11 }} />
+                <YAxis domain={[0, 100]} tick={{ fill: "#64748b", fontSize: 11 }}
+                  tickFormatter={(v) => `${v}th`} />
                 <Tooltip
                   contentStyle={{ background: "#0d1623", border: "1px solid #1e2d40", borderRadius: 8 }}
-                  formatter={(value) => [`${value}`, "Rating"]}
+                  formatter={(value) => [`${value}th percentile`, "Overall"]}
                 />
                 <Line
                   type="monotone"
-                  dataKey="Rating"
+                  dataKey="Percentile"
                   stroke="#22d3ee"
                   strokeWidth={2.5}
                   dot={{ r: 4, fill: "#22d3ee" }}

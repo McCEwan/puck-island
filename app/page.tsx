@@ -103,7 +103,7 @@ export default function PuckIsland() {
   const [sortKey,     setSortKey]     = useState("pts");
   const [statSortKey,    setStatSortKey]    = useState("pts");
   const [statSortDir,    setStatSortDir]    = useState("desc");
-  const [selectedSeason, setSelectedSeason] = useState("2024-25");
+  const [selectedSeason, setSelectedSeason] = useState("2025-26");
 
   // ── Enriched static players (stable reference, computed once) ──
   const enrichedPlayers = useMemo(() =>
