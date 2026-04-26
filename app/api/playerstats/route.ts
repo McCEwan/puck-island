@@ -5,18 +5,14 @@ const supabase = createClient(
   process.env.SUPABASE_KEY!
 );
 
-export async function GET() {
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const season = searchParams.get('season') ?? '2024-25';
+
   const { data, error } = await supabase
     .from('player_season_stats')
-    .select(`
-      *,
-      players (
-        id,
-        full_name,
-        position,
-        current_team_id
-      )
-    `)
+    .select(`*, players (id, full_name, position, current_team_id)`)
+    .eq('season_id', season)
     .order('pts', { ascending: false });
 
   if (error) return Response.json({ error }, { status: 500 });

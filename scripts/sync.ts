@@ -55,58 +55,91 @@ async function syncPlayers() {
   console.log(`Players synced: ${total}`);
 }
 
+const SEASONS = [
+  { id: '2000-01', label: '2000-01', code: 20002001, start: 2000, end: 2001 },
+  { id: '2001-02', label: '2001-02', code: 20012002, start: 2001, end: 2002 },
+  { id: '2002-03', label: '2002-03', code: 20022003, start: 2002, end: 2003 },
+  { id: '2003-04', label: '2003-04', code: 20032004, start: 2003, end: 2004 },
+  { id: '2005-06', label: '2005-06', code: 20052006, start: 2005, end: 2006 },
+  { id: '2006-07', label: '2006-07', code: 20062007, start: 2006, end: 2007 },
+  { id: '2007-08', label: '2007-08', code: 20072008, start: 2007, end: 2008 },
+  { id: '2008-09', label: '2008-09', code: 20082009, start: 2008, end: 2009 },
+  { id: '2009-10', label: '2009-10', code: 20092010, start: 2009, end: 2010 },
+  { id: '2010-11', label: '2010-11', code: 20102011, start: 2010, end: 2011 },
+  { id: '2011-12', label: '2011-12', code: 20112012, start: 2011, end: 2012 },
+  { id: '2012-13', label: '2012-13', code: 20122013, start: 2012, end: 2013 },
+  { id: '2013-14', label: '2013-14', code: 20132014, start: 2013, end: 2014 },
+  { id: '2014-15', label: '2014-15', code: 20142015, start: 2014, end: 2015 },
+  { id: '2015-16', label: '2015-16', code: 20152016, start: 2015, end: 2016 },
+  { id: '2016-17', label: '2016-17', code: 20162017, start: 2016, end: 2017 },
+  { id: '2017-18', label: '2017-18', code: 20172018, start: 2017, end: 2018 },
+  { id: '2018-19', label: '2018-19', code: 20182019, start: 2018, end: 2019 },
+  { id: '2019-20', label: '2019-20', code: 20192020, start: 2019, end: 2020 },
+  { id: '2020-21', label: '2020-21', code: 20202021, start: 2020, end: 2021 },
+  { id: '2021-22', label: '2021-22', code: 20212022, start: 2021, end: 2022 },
+  { id: '2022-23', label: '2022-23', code: 20222023, start: 2022, end: 2023 },
+  { id: '2023-24', label: '2023-24', code: 20232024, start: 2023, end: 2024 },
+  { id: '2024-25', label: '2024-25', code: 20242025, start: 2024, end: 2025 },
+  { id: '2025-26', label: '2025-26', code: 20252026, start: 2025, end: 2026 },
+];
+
 async function syncSeasons() {
-  const { error } = await supabase.from('seasons').upsert({
-    id: '2024-25',
-    label: '2024-25',
-    start_year: 2024,
-    end_year: 2025,
-  }, { onConflict: 'id' });
-  console.log(error ?? 'Season synced');
+  const rows = SEASONS.map(s => ({
+    id: s.id, label: s.label, start_year: s.start, end_year: s.end
+  }));
+  const { error } = await supabase.from('seasons').upsert(rows, { onConflict: 'id' });
+  console.log(error ?? `Seasons synced: ${rows.length}`);
 }
 
 async function syncAllPlayerStats() {
   const { data: players } = await supabase.from('players').select('id');
   if (!players) return;
 
-  console.log(`Syncing stats for ${players.length} players...`);
-  let success = 0;
+  console.log(`Syncing stats for ${players.length} players across ${SEASONS.length} seasons...`);
+  let total = 0;
 
   for (const player of players) {
     try {
       const res = await fetch(`https://api-web.nhle.com/v1/player/${player.id}/landing`, { headers: HEADERS });
       const data = await res.json();
-      const season = data.seasonTotals?.find(
-        (s: any) => s.season === 20242025 && s.leagueAbbrev === 'NHL'
-      );
-      if (!season) continue;
+      if (!data.seasonTotals) continue;
 
-      const row = {
-        player_id:    player.id,
-        team_id:      season.teamAbbrevs?.toLowerCase(),
-        season_id:    '2024-25',
-        gp:           season.gamesPlayed ?? 0,
-        g:            season.goals ?? 0,
-        a:            season.assists ?? 0,
-        pts:          season.points ?? 0,
-        shots:        season.shots ?? 0,
-        pim:          season.pim ?? 0,
-        pp_goals:     season.powerPlayGoals ?? 0,
-        pp_points:    season.powerPlayPoints ?? 0,
-        gw_goals:     season.gameWinningGoals ?? 0,
-        plus_minus:   season.plusMinus ?? 0,
-        toi_per_game: season.avgToi ?? null,
-      };
+      const rows = [];
+      for (const season of SEASONS) {
+        const s = data.seasonTotals.find(
+          (t: any) => t.season === season.code && t.leagueAbbrev === 'NHL'
+        );
+        if (!s) continue;
 
-      await supabase.from('player_season_stats').upsert(row, {
-        onConflict: 'player_id,team_id,season_id'
-      });
-      success++;
+        rows.push({
+          player_id:    player.id,
+          team_id:      s.teamAbbrevs?.toLowerCase() ?? null,
+          season_id:    season.id,
+          gp:           s.gamesPlayed ?? 0,
+          g:            s.goals ?? 0,
+          a:            s.assists ?? 0,
+          pts:          s.points ?? 0,
+          shots:        s.shots ?? 0,
+          pim:          s.pim ?? 0,
+          pp_goals:     s.powerPlayGoals ?? 0,
+          pp_points:    s.powerPlayPoints ?? 0,
+          gw_goals:     s.gameWinningGoals ?? 0,
+          plus_minus:   s.plusMinus ?? 0,
+          toi_per_game: s.avgToi ?? null,
+        });
+      }
+
+      if (rows.length > 0) {
+        await supabase.from('player_season_stats').upsert(rows, {
+          onConflict: 'player_id,team_id,season_id'
+        });
+        total += rows.length;
+      }
     } catch (e) {
-      // skip players with no data
+      // skip players with errors
     }
   }
-  console.log(`Stats synced: ${success}/${players.length}`);
+  console.log(`Total stat rows synced: ${total}`);
 }
 
 (async () => {

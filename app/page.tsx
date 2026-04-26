@@ -31,8 +31,8 @@ const NHLApi = {
     return res.json();
   },
 
-  async getPlayerStats() {
-    const res = await fetch('/api/playerstats');
+  async getPlayerStats(season: string) {
+    const res = await fetch(`/api/playerstats?season=${season}`);
     return res.json();
   },
 
@@ -98,8 +98,9 @@ export default function PuckIsland() {
   const [query,       setQuery]       = useState("");
   const [teamFilter,  setTeamFilter]  = useState("ALL");
   const [sortKey,     setSortKey]     = useState("pts");
-  const [statSortKey, setStatSortKey] = useState("pts");
-  const [statSortDir, setStatSortDir] = useState("desc");
+  const [statSortKey,    setStatSortKey]    = useState("pts");
+  const [statSortDir,    setStatSortDir]    = useState("desc");
+  const [selectedSeason, setSelectedSeason] = useState("2024-25");
 
   // ── Enriched static players (stable reference, computed once) ──
   const enrichedPlayers = useMemo(() =>
@@ -148,7 +149,7 @@ export default function PuckIsland() {
         );
         setRosters(Object.fromEntries(rosterEntries));
 
-        const stats = await NHLApi.getPlayerStats();
+        const stats = await NHLApi.getPlayerStats(selectedSeason);
         console.log('Player Stats:', stats);
         setPlayerStats(stats);
         setLoadingMsg("Live NHL data loaded ✓");
@@ -159,6 +160,14 @@ export default function PuckIsland() {
     }
     loadNHLData();
   }, []);
+
+  useEffect(() => {
+    async function loadStats() {
+      const stats = await NHLApi.getPlayerStats(selectedSeason);
+      setPlayerStats(stats);
+    }
+    loadStats();
+  }, [selectedSeason]);
 
   // ── Derived / filtered ──
   // FIX: all dependencies (query, teamFilter, sortKey, enrichedPlayers) now exist before this call
@@ -186,8 +195,17 @@ export default function PuckIsland() {
   );
 
   const sortedStats = useMemo(() => {
-    return [...playerStats]
-      .filter(p => p.players)
+    // Deduplicate — keep highest pts row per player
+    const seen = new Map();
+    for (const p of playerStats) {
+      if (!p.players) continue;
+      const existing = seen.get(p.player_id);
+      if (!existing || p.pts > existing.pts) {
+        seen.set(p.player_id, p);
+      }
+    }
+
+    return [...seen.values()]
       .map(p => ({
         id:       p.player_id,
         name:     p.players.full_name,
@@ -349,6 +367,20 @@ export default function PuckIsland() {
         {page === "players" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
             <PageTitle title="Player Explorer" sub={`${sortedStats.length} players — click any column to sort`} />
+            <select
+              value={selectedSeason}
+              onChange={(e) => setSelectedSeason(e.target.value)}
+              style={{ marginBottom: 16, width: 160 }}
+            >
+              {[
+                '2025-26','2024-25','2023-24','2022-23','2021-22','2020-21',
+                '2019-20','2018-19','2017-18','2016-17','2015-16','2014-15',
+                '2013-14','2012-13','2011-12','2010-11','2009-10','2008-09',
+                '2007-08','2006-07','2005-06','2003-04','2002-03','2001-02','2000-01'
+              ].map(s => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
             <div className="card" style={{ overflow: "hidden" }}>
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
