@@ -11,9 +11,10 @@ function per60(stat: number, icetime: number) {
 }
 
 function percentileRank(value: number, values: number[]) {
+  if (values.length <= 1) return 100;
   const sorted = [...values].sort((a, b) => a - b);
   const below  = sorted.filter(v => v < value).length;
-  return Math.round((below / sorted.length) * 100);
+  return Math.round((below / (values.length - 1)) * 100);
 }
 
 function inversePercentileRank(value: number, values: number[]) {
@@ -147,18 +148,18 @@ export async function GET(_req: NextRequest, ctx: RouteContext<'/api/players/[id
 
     if (isD) {
       defense = Math.round(
-        inversePercentileRank(tXGA60,    xga60s)    * 0.30 +
-        inversePercentileRank(tCA60,     ca60s)     * 0.20 +
-        inversePercentileRank(tHDXA60,   hdxa60s)   * 0.20 +
-        inversePercentileRank(tRelXGPct, relXGPcts) * 0.20 +
-        percentileRank(tBlk60,           blk60s)    * 0.10
+        inversePercentileRank(tXGA60,  xga60s)  * 0.35 +
+        inversePercentileRank(tCA60,   ca60s)   * 0.25 +
+        inversePercentileRank(tHDXA60, hdxa60s) * 0.20 +
+        percentileRank(tRelXGPct, relXGPcts)    * 0.10 +
+        percentileRank(tBlk60, blk60s)          * 0.10
       );
     } else {
       defense = Math.round(
-        inversePercentileRank(tXGA60,    xga60s)    * 0.35 +
-        inversePercentileRank(tCA60,     ca60s)     * 0.25 +
-        inversePercentileRank(tHDXA60,   hdxa60s)   * 0.20 +
-        inversePercentileRank(tRelXGPct, relXGPcts) * 0.20
+        inversePercentileRank(tXGA60,  xga60s)  * 0.40 +
+        inversePercentileRank(tCA60,   ca60s)   * 0.30 +
+        inversePercentileRank(tHDXA60, hdxa60s) * 0.20 +
+        percentileRank(tRelXGPct, relXGPcts)    * 0.10
       );
     }
   }
