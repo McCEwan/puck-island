@@ -78,11 +78,11 @@ export async function GET(_req: NextRequest, ctx: RouteContext<'/api/players/[id
     return Response.json({ error: 'Player not in qualified pool' }, { status: 404 });
   }
 
-  // ── OFFENSE (basic stats) ──
-  const ppgs      = posGroupBasic.map((s: any) => s.gp > 0 ? s.pts    / s.gp : 0);
-  const gpgs      = posGroupBasic.map((s: any) => s.gp > 0 ? s.g      / s.gp : 0);
-  const apgs      = posGroupBasic.map((s: any) => s.gp > 0 ? s.a      / s.gp : 0);
-  const shotRates = posGroupBasic.map((s: any) => s.gp > 0 ? s.shots  / s.gp : 0);
+  // ── OFFENSE percentiles (per game) ──
+  const ppgs      = posGroupBasic.map((s: any) => s.gp > 0 ? s.pts   / s.gp : 0);
+  const gpgs      = posGroupBasic.map((s: any) => s.gp > 0 ? s.g     / s.gp : 0);
+  const apgs      = posGroupBasic.map((s: any) => s.gp > 0 ? s.a     / s.gp : 0);
+  const shotRates = posGroupBasic.map((s: any) => s.gp > 0 ? s.shots / s.gp : 0);
 
   const tPPG      = targetBasic.gp > 0 ? targetBasic.pts   / targetBasic.gp : 0;
   const tGPG      = targetBasic.gp > 0 ? targetBasic.g     / targetBasic.gp : 0;
@@ -106,23 +106,44 @@ export async function GET(_req: NextRequest, ctx: RouteContext<'/api/players/[id
     );
   }
 
-  // ── DEFENSE (MoneyPuck) ──
+  // ── DEFENSE percentiles (MoneyPuck based) ──
   let defense: number | null = null;
 
   if (targetMP && posGroupMP.length > 10) {
-    const xga60s    = posGroupMP.map((s: any) => per60(s.xga,           s.icetime));
-    const ca60s     = posGroupMP.map((s: any) => per60(s.ca,            s.icetime));
-    const hdxa60s   = posGroupMP.map((s: any) => per60(s.sca,           s.icetime));
-    const blk60s    = posGroupMP.map((s: any) => per60(s.shots_blocked, s.icetime));
-    const relXGPcts = posGroupMP.map((s: any) =>
+    // Normalize per-game before per-60 to stabilize across different GP totals
+    const normalize = (s: any) => {
+      const gp = s.games_played || 1;
+      return {
+        ...s,
+        xgf:           s.xgf           / gp,
+        xga:           s.xga           / gp,
+        cf:            s.cf            / gp,
+        ca:            s.ca            / gp,
+        ff:            s.ff            / gp,
+        fa:            s.fa            / gp,
+        scf:           s.scf           / gp,
+        sca:           s.sca           / gp,
+        shots_blocked: s.shots_blocked / gp,
+        icetime:       s.icetime       / gp,
+      };
+    };
+
+    const normGroupMP  = posGroupMP.map(normalize);
+    const normTargetMP = normalize(targetMP);
+
+    const xga60s    = normGroupMP.map((s: any) => per60(s.xga,           s.icetime));
+    const ca60s     = normGroupMP.map((s: any) => per60(s.ca,            s.icetime));
+    const hdxa60s   = normGroupMP.map((s: any) => per60(s.sca,           s.icetime));
+    const blk60s    = normGroupMP.map((s: any) => per60(s.shots_blocked, s.icetime));
+    const relXGPcts = normGroupMP.map((s: any) =>
       (s.on_ice_xg_pct ?? 50) - (s.off_ice_xg_pct ?? 50)
     );
 
-    const tXGA60    = per60(targetMP.xga,           targetMP.icetime);
-    const tCA60     = per60(targetMP.ca,             targetMP.icetime);
-    const tHDXA60   = per60(targetMP.sca,            targetMP.icetime);
-    const tBlk60    = per60(targetMP.shots_blocked,  targetMP.icetime);
-    const tRelXGPct = (targetMP.on_ice_xg_pct ?? 50) - (targetMP.off_ice_xg_pct ?? 50);
+    const tXGA60    = per60(normTargetMP.xga,           normTargetMP.icetime);
+    const tCA60     = per60(normTargetMP.ca,             normTargetMP.icetime);
+    const tHDXA60   = per60(normTargetMP.sca,            normTargetMP.icetime);
+    const tBlk60    = per60(normTargetMP.shots_blocked,  normTargetMP.icetime);
+    const tRelXGPct = (normTargetMP.on_ice_xg_pct ?? 50) - (normTargetMP.off_ice_xg_pct ?? 50);
 
     if (isD) {
       defense = Math.round(
