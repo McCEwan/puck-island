@@ -158,23 +158,11 @@ export default function PuckIsland() {
         setPlayerStats(stats);
         setLoadingMsg("Live NHL data loaded ✓");
 
-        // Fetch percentiles for all qualified players
-        async function loadListPercentiles(statRows: any[]) {
-          const qualified = statRows.filter(p => p.gp > 30 && p.players);
-          const results = await Promise.all(
-            qualified.map(p =>
-              fetch(`/api/players/${p.player_id}/ratings?season=${selectedSeason}`)
-                .then(r => r.ok ? r.json() : null)
-                .then(d => [p.player_id, {
-                  overall: d?.percentiles?.overall ?? null,
-                  offense: d?.percentiles?.offense ?? null,
-                  defense: d?.percentiles?.defense ?? null,
-                }])
-            )
-          );
-          setListPercentiles(Object.fromEntries(results));
+        // Single bulk call for all player ratings
+        const bulkRes = await fetch(`/api/ratings/bulk?season=${selectedSeason}`);
+        if (bulkRes.ok) {
+          setListPercentiles(await bulkRes.json());
         }
-        loadListPercentiles(stats);
       } catch (err) {
         setLoadingMsg("API error — showing cached data");
         console.error(err);
@@ -192,24 +180,12 @@ export default function PuckIsland() {
   }, [selectedSeason]);
 
   useEffect(() => {
-    if (playerStats.length === 0) return;
-    async function refreshPercentiles() {
-      const qualified = playerStats.filter((p: any) => p.gp > 30 && p.players);
-      const results = await Promise.all(
-        qualified.map((p: any) =>
-          fetch(`/api/players/${p.player_id}/ratings?season=${selectedSeason}`)
-            .then(r => r.ok ? r.json() : null)
-            .then(d => [p.player_id, {
-              overall: d?.percentiles?.overall ?? null,
-              offense: d?.percentiles?.offense ?? null,
-              defense: d?.percentiles?.defense ?? null,
-            }])
-        )
-      );
-      setListPercentiles(Object.fromEntries(results));
+    async function refreshBulkRatings() {
+      const res = await fetch(`/api/ratings/bulk?season=${selectedSeason}`);
+      if (res.ok) setListPercentiles(await res.json());
     }
-    refreshPercentiles();
-  }, [selectedSeason, playerStats]);
+    refreshBulkRatings();
+  }, [selectedSeason]);
 
   // ── Derived / filtered ──
   // FIX: all dependencies (query, teamFilter, sortKey, enrichedPlayers) now exist before this call
