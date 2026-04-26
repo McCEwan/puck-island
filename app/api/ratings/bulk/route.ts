@@ -42,7 +42,13 @@ export async function GET(req: Request) {
     .eq('season', mpSeason)
     .eq('situation', '5on5');
 
-  const mpMap = new Map((allMP ?? []).map((s: any) => [s.player_id, s]));
+  const qualifiedPlayerIds = new Set(allBasic.map((s: any) => s.player_id));
+
+  const mpMap = new Map(
+    (allMP ?? [])
+      .filter((s: any) => qualifiedPlayerIds.has(s.player_id) && s.icetime >= 200)
+      .map((s: any) => [s.player_id, s])
+  );
 
   // ── Split into position groups ──
   const forwards   = allBasic.filter((s: any) => s.players.position !== 'D');
@@ -60,8 +66,7 @@ export async function GET(req: Request) {
     // ── Defense arrays (MoneyPuck) ──
     const groupMP = group
       .map(s => mpMap.get(s.player_id))
-      .filter(Boolean)
-      .filter((s: any) => s.icetime >= 200);
+      .filter(Boolean);
 
     const hasMP = groupMP.length > 10;
 

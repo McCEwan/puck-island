@@ -65,9 +65,10 @@ export async function GET(_req: NextRequest, ctx: RouteContext<'/api/players/[id
 
   const playerIdsInGroup = new Set(posGroupBasic.map((s: any) => s.player_id));
 
-  // Minimum 200 minutes of 5v5 icetime to qualify for defensive rating
+  // Only players who passed the 30 GP threshold, with 200+ min 5v5 icetime
+  const qualifiedPlayerIds = new Set(allBasic.map((s: any) => s.player_id));
   const posGroupMP = (allMP ?? []).filter((s: any) =>
-    playerIdsInGroup.has(s.player_id) && s.icetime >= 200
+    qualifiedPlayerIds.has(s.player_id) && s.icetime >= 200
   );
 
   const basicMap = new Map(posGroupBasic.map((s: any) => [s.player_id, s]));
