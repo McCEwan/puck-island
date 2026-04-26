@@ -27,7 +27,7 @@ export default function PlayerDetailPage() {
   const [player, setPlayer] = useState(null);
   const [stats, setStats] = useState([]);
   const [ratings, setRatings] = useState(null);
-  const [seasonPercentiles, setSeasonPercentiles] = useState({});
+  const [seasonPercentiles, setSeasonPercentiles] = useState<Record<string, { overall: number | null, offense: number | null, defense: number | null }>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -50,13 +50,17 @@ export default function PlayerDetailPage() {
         .map((s) => s.season_id);
 
       const pctResults = await Promise.all(
-        seasonIds.map((sid) =>
+        seasonIds.map((sid: string) =>
           fetch(`/api/players/${id}/ratings?season=${sid}`)
             .then(r => r.json())
-            .then(d => [sid, d?.percentiles?.overall ?? null])
+            .then(d => [sid, {
+              overall: d?.percentiles?.overall ?? null,
+              offense: d?.percentiles?.offense ?? null,
+              defense: d?.percentiles?.defense ?? null,
+            }])
         )
       );
-      setSeasonPercentiles(Object.fromEntries(pctResults.filter(([, v]) => v !== null)));
+      setSeasonPercentiles(Object.fromEntries(pctResults));
       setLoading(false);
     }
     load();
@@ -82,8 +86,10 @@ export default function PlayerDetailPage() {
   const chartData = orderedStats
     .filter(s => seasonPercentiles[s.season_id] !== undefined)
     .map(s => ({
-      season: s.season_id.slice(0, 4),
-      Percentile: seasonPercentiles[s.season_id],
+      season:  s.season_id.slice(0, 4),
+      Overall: seasonPercentiles[s.season_id]?.overall ?? null,
+      Offense: seasonPercentiles[s.season_id]?.offense ?? null,
+      Defense: seasonPercentiles[s.season_id]?.defense ?? null,
     }));
 
   const bestSeason = orderedStats.reduce((best, s) =>
@@ -189,26 +195,65 @@ export default function PlayerDetailPage() {
             <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginBottom: 4 }}>
               Percentile Rank Per Season
             </div>
-            <div style={{ fontSize: 12, color: "#64748b", marginBottom: 20 }}>
-              Overall percentile among {ratings?.positionGroup ?? "skaters"} · min 20 GP
+            <div style={{ fontSize: 12, color: "#64748b", marginBottom: 8 }}>
+              Percentile among {ratings?.positionGroup ?? "skaters"} · min 30 GP
             </div>
-            <ResponsiveContainer width="100%" height={260}>
+            {/* Legend */}
+            <div style={{ display: "flex", gap: 20, marginBottom: 20 }}>
+              {[
+                { label: "Overall", color: "#f59e0b" },
+                { label: "Offense", color: "#22d3ee" },
+                { label: "Defense", color: "#4ade80" },
+              ].map(({ label, color }) => (
+                <div key={label} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <div style={{ width: 12, height: 3, background: color, borderRadius: 2 }} />
+                  <span style={{ fontSize: 12, color: "#94a3b8" }}>{label}</span>
+                </div>
+              ))}
+            </div>
+            <ResponsiveContainer width="100%" height={280}>
               <LineChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e2d40" />
                 <XAxis dataKey="season" tick={{ fill: "#64748b", fontSize: 11 }} />
-                <YAxis domain={[0, 100]} tick={{ fill: "#64748b", fontSize: 11 }}
-                  tickFormatter={(v) => `${v}th`} />
+                <YAxis
+                  domain={[0, 100]}
+                  tick={{ fill: "#64748b", fontSize: 11 }}
+                  tickFormatter={(v) => `${v}th`}
+                />
                 <Tooltip
                   contentStyle={{ background: "#0d1623", border: "1px solid #1e2d40", borderRadius: 8 }}
-                  formatter={(value) => [`${value}th percentile`, "Overall"]}
+                  formatter={(value: any, name: string) =>
+                    value !== null ? [`${value}th percentile`, name] : ["No data", name]
+                  }
                 />
                 <Line
                   type="monotone"
-                  dataKey="Percentile"
-                  stroke="#22d3ee"
+                  dataKey="Overall"
+                  stroke="#f59e0b"
                   strokeWidth={2.5}
-                  dot={{ r: 4, fill: "#22d3ee" }}
+                  dot={{ r: 4, fill: "#f59e0b" }}
                   activeDot={{ r: 6 }}
+                  connectNulls
+                />
+                <Line
+                  type="monotone"
+                  dataKey="Offense"
+                  stroke="#22d3ee"
+                  strokeWidth={1.5}
+                  strokeDasharray="4 2"
+                  dot={{ r: 3, fill: "#22d3ee" }}
+                  activeDot={{ r: 5 }}
+                  connectNulls
+                />
+                <Line
+                  type="monotone"
+                  dataKey="Defense"
+                  stroke="#4ade80"
+                  strokeWidth={1.5}
+                  strokeDasharray="4 2"
+                  dot={{ r: 3, fill: "#4ade80" }}
+                  activeDot={{ r: 5 }}
+                  connectNulls
                 />
               </LineChart>
             </ResponsiveContainer>
