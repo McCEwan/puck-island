@@ -121,12 +121,13 @@ export default function PuckIsland() {
   const [compareB,       setCompareB]       = useState(enrichedPlayers[1]);
 
   // ── Real NHL data ──
-  const [standings,   setStandings]   = useState([]);
-  const [rosters,     setRosters]     = useState({});
-  const [dbTeams,     setDbTeams]     = useState([]);
-  const [dbPlayers,   setDbPlayers]   = useState([]);
-  const [playerStats, setPlayerStats] = useState([]);
-  const [loadingMsg,  setLoadingMsg]  = useState("Connecting to NHL API…");
+  const [standings,       setStandings]       = useState([]);
+  const [rosters,         setRosters]         = useState({});
+  const [dbTeams,         setDbTeams]         = useState([]);
+  const [dbPlayers,       setDbPlayers]       = useState([]);
+  const [playerStats,     setPlayerStats]     = useState([]);
+  const [listPercentiles, setListPercentiles] = useState<Record<number, { overall: number | null, offense: number | null, defense: number | null }>>({});
+  const [loadingMsg,      setLoadingMsg]      = useState("Connecting to NHL API…");
 
   useEffect(() => {
     async function loadNHLData() {
@@ -156,6 +157,24 @@ export default function PuckIsland() {
         console.log('Player Stats:', stats);
         setPlayerStats(stats);
         setLoadingMsg("Live NHL data loaded ✓");
+
+        // Fetch percentiles for all qualified players
+        async function loadListPercentiles(statRows: any[]) {
+          const qualified = statRows.filter(p => p.gp > 30 && p.players);
+          const results = await Promise.all(
+            qualified.map(p =>
+              fetch(`/api/players/${p.player_id}/ratings?season=${selectedSeason}`)
+                .then(r => r.ok ? r.json() : null)
+                .then(d => [p.player_id, {
+                  overall: d?.percentiles?.overall ?? null,
+                  offense: d?.percentiles?.offense ?? null,
+                  defense: d?.percentiles?.defense ?? null,
+                }])
+            )
+          );
+          setListPercentiles(Object.fromEntries(results));
+        }
+        loadListPercentiles(stats);
       } catch (err) {
         setLoadingMsg("API error — showing cached data");
         console.error(err);
@@ -171,6 +190,26 @@ export default function PuckIsland() {
     }
     loadStats();
   }, [selectedSeason]);
+
+  useEffect(() => {
+    if (playerStats.length === 0) return;
+    async function refreshPercentiles() {
+      const qualified = playerStats.filter((p: any) => p.gp > 30 && p.players);
+      const results = await Promise.all(
+        qualified.map((p: any) =>
+          fetch(`/api/players/${p.player_id}/ratings?season=${selectedSeason}`)
+            .then(r => r.ok ? r.json() : null)
+            .then(d => [p.player_id, {
+              overall: d?.percentiles?.overall ?? null,
+              offense: d?.percentiles?.offense ?? null,
+              defense: d?.percentiles?.defense ?? null,
+            }])
+        )
+      );
+      setListPercentiles(Object.fromEntries(results));
+    }
+    refreshPercentiles();
+  }, [selectedSeason, playerStats]);
 
   // ── Derived / filtered ──
   // FIX: all dependencies (query, teamFilter, sortKey, enrichedPlayers) now exist before this call
@@ -198,38 +237,41 @@ export default function PuckIsland() {
   );
 
   const sortedStats = useMemo(() => {
-    // Deduplicate — keep highest pts row per player
     const seen = new Map();
     for (const p of playerStats) {
       if (!p.players) continue;
       const existing = seen.get(p.player_id);
-      if (!existing || p.pts > existing.pts) {
-        seen.set(p.player_id, p);
-      }
+      if (!existing || p.pts > existing.pts) seen.set(p.player_id, p);
     }
 
     return [...seen.values()]
-      .filter(p => p.players.position !== 'G')
       .map(p => ({
-        id:       p.player_id,
-        name:     p.players.full_name,
-        team:     p.players.current_team_id?.toUpperCase() ?? '—',
-        position: p.players.position ?? '—',
-        gp:       p.gp,
-        g:        p.g,
-        a:        p.a,
-        pts:      p.pts,
-        shots:    p.shots,
-        shPct:    p.shots > 0 ? Number(((p.g / p.shots) * 100).toFixed(1)) : 0,
-        ppg:      p.gp > 0 ? Number((p.pts / p.gp).toFixed(2)) : 0,
-        rating:   p.gp > 0 ? Math.round(((p.pts/p.gp)*45 + (p.g/p.gp)*25 + (p.shots/p.gp)*5) * 10) / 10 : 0,
+        id:                p.player_id,
+        name:              p.players.full_name,
+        team:              p.players.current_team_id?.toUpperCase() ?? '—',
+        position:          p.players.position ?? '—',
+        gp:                p.gp,
+        g:                 p.g,
+        a:                 p.a,
+        pts:               p.pts,
+        shots:             p.shots,
+        shPct:             p.shots > 0 ? Number(((p.g / p.shots) * 100).toFixed(1)) : 0,
+        ppg:               p.gp > 0 ? Number((p.pts / p.gp).toFixed(2)) : 0,
+        offensePercentile: listPercentiles[p.player_id]?.offense ?? null,
+        defensePercentile: listPercentiles[p.player_id]?.defense ?? null,
+        overallPercentile: listPercentiles[p.player_id]?.overall ?? null,
       }))
       .filter(p => p.gp > 0)
+      .filter(p => p.position !== 'G')
       .sort((a, b) => {
-        const dir = statSortDir === 'desc' ? -1 : 1;
-        return (Number(a[statSortKey]) - Number(b[statSortKey])) * dir;
+        if (sortKey === 'offensePercentile' || sortKey === 'defensePercentile' || sortKey === 'overallPercentile') {
+          const aVal = a[sortKey] ?? -1;
+          const bVal = b[sortKey] ?? -1;
+          return bVal - aVal;
+        }
+        return Number(b[sortKey]) - Number(a[sortKey]);
       });
-  }, [playerStats, statSortKey, statSortDir]);
+  }, [playerStats, statSortKey, statSortDir, listPercentiles, sortKey]);
 
   // ── Derived for player detail page ──
   const trendData = selectedPlayer.trend.map((v, i) => ({ game: `G${i + 1}`, points: v }));
@@ -344,20 +386,31 @@ export default function PuckIsland() {
         {page === "players" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
             <PageTitle title="Player Explorer" sub={`${sortedStats.length} players — click any column to sort`} />
-            <select
-              value={selectedSeason}
-              onChange={(e) => setSelectedSeason(e.target.value)}
-              style={{ marginBottom: 16, width: 160 }}
-            >
-              {[
-                '2025-26','2024-25','2023-24','2022-23','2021-22','2020-21',
-                '2019-20','2018-19','2017-18','2016-17','2015-16','2014-15',
-                '2013-14','2012-13','2011-12','2010-11','2009-10','2008-09',
-                '2007-08','2006-07','2005-06','2003-04','2002-03','2001-02','2000-01'
-              ].map(s => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
+            <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
+              <select
+                value={selectedSeason}
+                onChange={(e) => setSelectedSeason(e.target.value)}
+                style={{ width: 160 }}
+              >
+                {[
+                  '2025-26','2024-25','2023-24','2022-23','2021-22','2020-21',
+                  '2019-20','2018-19','2017-18','2016-17','2015-16','2014-15',
+                  '2013-14','2012-13','2011-12','2010-11','2009-10','2008-09',
+                  '2007-08','2006-07','2005-06','2003-04','2002-03','2001-02','2000-01'
+                ].map(s => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+              <select value={sortKey} onChange={(e) => setSortKey(e.target.value)} style={{ width: 200 }}>
+                <option value="pts">Sort: Points</option>
+                <option value="g">Sort: Goals</option>
+                <option value="a">Sort: Assists</option>
+                <option value="shots">Sort: Shots</option>
+                <option value="offensePercentile">Sort: Offense Rating</option>
+                <option value="defensePercentile">Sort: Defense Rating</option>
+                <option value="overallPercentile">Sort: Overall Rating</option>
+              </select>
+            </div>
             <div className="card" style={{ overflow: "hidden" }}>
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
@@ -374,7 +427,9 @@ export default function PuckIsland() {
                         { label: "Shots",    key: "shots" },
                         { label: "SH%",      key: "shPct" },
                         { label: "PPG",      key: "ppg" },
-                        { label: "Rating",   key: "rating" },
+                        { label: "OFF RTG",  key: "offensePercentile" },
+                        { label: "DEF RTG",  key: "defensePercentile" },
+                        { label: "OVR RTG",  key: "overallPercentile" },
                       ].map(({ label, key }) => (
                         <th
                           key={label}
@@ -422,7 +477,21 @@ export default function PuckIsland() {
                         <td>{p.shots}</td>
                         <td>{p.shPct}%</td>
                         <td>{p.ppg}</td>
-                        <td><span className="pill"><Star size={11} />{p.rating}</span></td>
+                        <td>
+                          {p.offensePercentile !== null
+                            ? <span className="pill" style={{ background: "#22d3ee15", color: "#22d3ee" }}>{p.offensePercentile}th</span>
+                            : <span style={{ color: "#475569", fontSize: 12 }}>—</span>}
+                        </td>
+                        <td>
+                          {p.defensePercentile !== null
+                            ? <span className="pill" style={{ background: "#4ade8015", color: "#4ade80" }}>{p.defensePercentile}th</span>
+                            : <span style={{ color: "#475569", fontSize: 12 }}>—</span>}
+                        </td>
+                        <td>
+                          {p.overallPercentile !== null
+                            ? <span className="pill" style={{ background: "#f59e0b15", color: "#f59e0b" }}>{p.overallPercentile}th</span>
+                            : <span style={{ color: "#475569", fontSize: 12 }}>—</span>}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
