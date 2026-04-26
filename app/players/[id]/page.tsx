@@ -70,9 +70,7 @@ export default function PlayerDetailPage() {
 
   const chartData = orderedStats.map(s => ({
     season: s.season_id.slice(0, 4),
-    PTS: s.pts,
-    G: s.g,
-    A: s.a,
+    Rating: calcRating(s.gp, s.pts, s.g, s.shots),
   }));
 
   const bestSeason = orderedStats.reduce((best, s) =>
@@ -136,16 +134,29 @@ export default function PlayerDetailPage() {
         {/* Chart */}
         {chartData.length > 1 && (
           <div className="card" style={{ padding: 28 }}>
-            <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginBottom: 20 }}>Points Per Season</div>
+            <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginBottom: 4 }}>
+              Rating Per Season
+            </div>
+            <div style={{ fontSize: 12, color: "#64748b", marginBottom: 20 }}>
+              Overall rating out of 100 — higher is better
+            </div>
             <ResponsiveContainer width="100%" height={260}>
               <LineChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#1e2d40" />
                 <XAxis dataKey="season" tick={{ fill: "#64748b", fontSize: 11 }} />
-                <YAxis tick={{ fill: "#64748b", fontSize: 11 }} />
-                <Tooltip contentStyle={{ background: "#0d1623", border: "1px solid #1e2d40", borderRadius: 8 }} />
-                <Line type="monotone" dataKey="PTS" stroke="#22d3ee" strokeWidth={2.5} dot={{ r: 3, fill: "#22d3ee" }} />
-                <Line type="monotone" dataKey="G"   stroke="#4ade80" strokeWidth={1.5} dot={{ r: 2, fill: "#4ade80" }} />
-                <Line type="monotone" dataKey="A"   stroke="#818cf8" strokeWidth={1.5} dot={{ r: 2, fill: "#818cf8" }} />
+                <YAxis domain={[0, 100]} tick={{ fill: "#64748b", fontSize: 11 }} />
+                <Tooltip
+                  contentStyle={{ background: "#0d1623", border: "1px solid #1e2d40", borderRadius: 8 }}
+                  formatter={(value) => [`${value}`, "Rating"]}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="Rating"
+                  stroke="#22d3ee"
+                  strokeWidth={2.5}
+                  dot={{ r: 4, fill: "#22d3ee" }}
+                  activeDot={{ r: 6 }}
+                />
               </LineChart>
             </ResponsiveContainer>
           </div>
