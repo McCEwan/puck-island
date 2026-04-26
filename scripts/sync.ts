@@ -106,27 +106,34 @@ async function syncAllPlayerStats() {
 
       const rows = [];
       for (const season of SEASONS) {
-        const s = data.seasonTotals.find(
+        // Use filter (not find) so traded players get one row per team stint
+        const stints = data.seasonTotals.filter(
           (t: any) => t.season === season.code && t.leagueAbbrev === 'NHL'
         );
-        if (!s) continue;
+        if (stints.length === 0) continue;
 
-        rows.push({
-          player_id:    player.id,
-          team_id:      s.teamAbbrevs?.toLowerCase() ?? null,
-          season_id:    season.id,
-          gp:           s.gamesPlayed ?? 0,
-          g:            s.goals ?? 0,
-          a:            s.assists ?? 0,
-          pts:          s.points ?? 0,
-          shots:        s.shots ?? 0,
-          pim:          s.pim ?? 0,
-          pp_goals:     s.powerPlayGoals ?? 0,
-          pp_points:    s.powerPlayPoints ?? 0,
-          gw_goals:     s.gameWinningGoals ?? 0,
-          plus_minus:   s.plusMinus ?? 0,
-          toi_per_game: s.avgToi ?? null,
-        });
+        for (const s of stints) {
+          const abbr = s.teamAbbrevs?.toLowerCase() ?? null;
+          // Skip aggregate rows (e.g. "VAN/MIN" or more than one team in the abbrev)
+          if (abbr && abbr.includes('/')) continue;
+
+          rows.push({
+            player_id:    player.id,
+            team_id:      abbr,
+            season_id:    season.id,
+            gp:           s.gamesPlayed ?? 0,
+            g:            s.goals ?? 0,
+            a:            s.assists ?? 0,
+            pts:          s.points ?? 0,
+            shots:        s.shots ?? 0,
+            pim:          s.pim ?? 0,
+            pp_goals:     s.powerPlayGoals ?? 0,
+            pp_points:    s.powerPlayPoints ?? 0,
+            gw_goals:     s.gameWinningGoals ?? 0,
+            plus_minus:   s.plusMinus ?? 0,
+            toi_per_game: s.avgToi ?? null,
+          });
+        }
       }
 
       if (rows.length > 0) {

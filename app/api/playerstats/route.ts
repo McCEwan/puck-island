@@ -13,7 +13,8 @@ export async function GET(req: Request) {
     .from('player_season_stats')
     .select(`*, players (id, full_name, position, current_team_id)`)
     .eq('season_id', season)
-    .order('pts', { ascending: false });
+    .order('pts', { ascending: false })
+    .limit(5000);
 
   if (error) return Response.json({ error }, { status: 500 });
   return Response.json(data);

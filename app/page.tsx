@@ -101,6 +101,7 @@ export default function PuckIsland() {
   const [query,       setQuery]       = useState("");
   const [teamFilter,  setTeamFilter]  = useState("ALL");
   const [posFilter,   setPosFilter]   = useState("ALL");
+  const [minGP,       setMinGP]       = useState(0);
   const [sortKey,     setSortKey]     = useState("pts");
   const [statSortKey,    setStatSortKey]    = useState("pts");
   const [statSortDir,    setStatSortDir]    = useState("desc");
@@ -214,33 +215,69 @@ export default function PuckIsland() {
   );
 
   const sortedStats = useMemo(() => {
-    const seen = new Map();
+    // Step 1: for each (player_id, team_id) pair keep the row with the most GP.
+    // This removes DB duplicates (e.g. one null-team row + one real-team row from
+    // separate syncs) without discarding legitimate multi-team stints.
+    const byPlayerTeam = new Map<string, any>();
     for (const p of playerStats) {
       if (!p.players) continue;
-      const existing = seen.get(p.player_id);
-      if (!existing || p.pts > existing.pts) seen.set(p.player_id, p);
+      // Skip slash-aggregate ("van/min") or numeric-aggregate ("2tm") rows
+      if (p.team_id && (p.team_id.includes('/') || /^\d/.test(p.team_id))) continue;
+      // Null team_id rows fall back to the player's current team so they still appear
+      const effectiveTeam = p.team_id ?? p.players.current_team_id ?? '__unknown__';
+      const key = `${p.player_id}__${effectiveTeam}`;
+      const existing = byPlayerTeam.get(key);
+      if (!existing || p.gp > existing.gp) byPlayerTeam.set(key, p);
     }
 
-    return [...seen.values()]
-      .map(p => ({
-        id:                p.player_id,
-        name:              p.players.full_name,
-        team:              p.players.current_team_id?.toUpperCase() ?? '—',
-        position:          p.players.position ?? '—',
-        gp:                p.gp,
-        g:                 p.g,
-        a:                 p.a,
-        pts:               p.pts,
-        shots:             p.shots,
-        shPct:             p.shots > 0 ? Number(((p.g / p.shots) * 100).toFixed(1)) : 0,
-        ppg:               p.gp > 0 ? Number((p.pts / p.gp).toFixed(2)) : 0,
-        offensePercentile: listPercentiles[p.player_id]?.offense ?? null,
-        defensePercentile: listPercentiles[p.player_id]?.defense ?? null,
-        overallPercentile: listPercentiles[p.player_id]?.overall ?? null,
-      }))
-      .filter(p => p.gp > 0)
+    // Step 2: group deduplicated rows by player_id
+    const grouped = new Map<number, any[]>();
+    for (const p of byPlayerTeam.values()) {
+      if (!grouped.has(p.player_id)) grouped.set(p.player_id, []);
+      grouped.get(p.player_id)!.push(p);
+    }
+
+    return [...grouped.entries()]
+      .map(([pid, rows]) => {
+        // Sum stats across all stints (rows are already clean — no null/aggregate team_ids)
+        const gp    = rows.reduce((s, r) => s + (r.gp    ?? 0), 0);
+        const g     = rows.reduce((s, r) => s + (r.g     ?? 0), 0);
+        const a     = rows.reduce((s, r) => s + (r.a     ?? 0), 0);
+        const pts   = rows.reduce((s, r) => s + (r.pts   ?? 0), 0);
+        const shots = rows.reduce((s, r) => s + (r.shots ?? 0), 0);
+
+        // Current team from player profile; former teams from stint rows
+        const currentTeam = rows[0].players.current_team_id?.toUpperCase() ?? '—';
+        const formerTeams = [...new Set(
+          rows
+            .map(r => (r.team_id ?? r.players.current_team_id)?.toUpperCase())
+            .filter((t: string) => t && t !== currentTeam)
+        )];
+        const teamDisplay = formerTeams.length > 0
+          ? `${currentTeam}, ${formerTeams.join(', ')}`
+          : currentTeam;
+
+        return {
+          id:                pid,
+          name:              rows[0].players.full_name,
+          team:              teamDisplay,
+          currentTeam,
+          position:          rows[0].players.position ?? '—',
+          gp,
+          g,
+          a,
+          pts,
+          shots,
+          shPct:             shots > 0 ? Number(((g / shots) * 100).toFixed(1)) : 0,
+          ppg:               gp    > 0 ? Number((pts / gp).toFixed(2))           : 0,
+          offensePercentile: listPercentiles[pid]?.offense ?? null,
+          defensePercentile: listPercentiles[pid]?.defense ?? null,
+          overallPercentile: listPercentiles[pid]?.overall ?? null,
+        };
+      })
+      .filter(p => p.gp >= Math.max(1, minGP))
       .filter(p => p.position !== 'G')
-      .filter(p => teamFilter === 'ALL' || p.team === teamFilter)
+      .filter(p => teamFilter === 'ALL' || p.currentTeam === teamFilter)
       .filter(p => posFilter  === 'ALL' || p.position === posFilter)
       .filter(p => query === '' || p.name.toLowerCase().includes(query.toLowerCase()))
       .sort((a, b) => {
@@ -252,7 +289,7 @@ export default function PuckIsland() {
         }
         return (Number((a as any)[sortKey]) - Number((b as any)[sortKey])) * dir;
       });
-  }, [playerStats, sortKey, statSortKey, statSortDir, listPercentiles, query, teamFilter, posFilter]);
+  }, [playerStats, sortKey, statSortKey, statSortDir, listPercentiles, query, teamFilter, posFilter, minGP]);
 
   // ── Derived for player detail page ──
   const trendData = selectedPlayer.trend.map((v, i) => ({ game: `G${i + 1}`, points: v }));
@@ -407,6 +444,18 @@ export default function PuckIsland() {
                 ))}
               </select>
               {/* Sort */}
+              {/* Min GP slider */}
+              <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#0a1525", border: "1px solid #1e2d40", borderRadius: 10, padding: "6px 14px" }}>
+                <span style={{ fontSize: 12, color: "#64748b", whiteSpace: "nowrap" }}>Min GP</span>
+                <input
+                  type="range"
+                  min={0} max={82} step={1}
+                  value={minGP}
+                  onChange={(e) => setMinGP(Number(e.target.value))}
+                  style={{ width: 100, accentColor: "#22d3ee", cursor: "pointer" }}
+                />
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#22d3ee", minWidth: 24 }}>{minGP}</span>
+              </div>
               <select value={sortKey} onChange={(e) => { setSortKey(e.target.value); setStatSortDir("desc"); }} style={{ width: 200 }}>
                 <option value="pts">Sort: Points</option>
                 <option value="g">Sort: Goals</option>
