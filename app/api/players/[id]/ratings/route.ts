@@ -49,7 +49,7 @@ export async function GET(_req: NextRequest, ctx: RouteContext<'/api/players/[id
   if (!allBasic) return Response.json({ error: 'No stats' }, { status: 500 });
 
   // ── MoneyPuck 5v5 stats ──
-  const mpSeason = parseInt(season.split('-')[1]) + 2000;
+  const mpSeason = parseInt(season.split('-')[0]);
 
   const { data: allMP } = await supabase
     .from('mp_skater_stats')
