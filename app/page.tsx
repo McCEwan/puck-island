@@ -2,6 +2,7 @@
 // v2
 "use client";
 import { useState, useMemo, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   Search, Trophy, Users, BarChart3, Star,
   Shield, Activity, ArrowLeft, TrendingUp, Zap,
@@ -91,6 +92,8 @@ function ptsPct(wins, ot, gp = 82) {
 // MAIN COMPONENT
 // ─────────────────────────────────────────────
 export default function PuckIsland() {
+  const router = useRouter();
+
   // ── Navigation ──
   const [page, setPage] = useState("home");
 
@@ -432,7 +435,8 @@ export default function PuckIsland() {
                       <tr
                         key={p.id}
                         className="tr-hover"
-                        style={{ borderTop: "1px solid #1e2d40" }}
+                        onClick={() => router.push(`/players/${p.id}`)}
+                        style={{ borderTop: "1px solid #1e2d40", cursor: "pointer" }}
                       >
                         <td style={{ padding: "13px 16px", fontWeight: 700 }}>{p.name}</td>
                         <td style={{ color: "#64748b" }}>{p.team}</td>
