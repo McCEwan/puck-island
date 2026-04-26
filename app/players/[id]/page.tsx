@@ -34,18 +34,22 @@ export default function PlayerDetailPage() {
   const router = useRouter();
   const [player, setPlayer] = useState(null);
   const [stats, setStats] = useState([]);
+  const [ratings, setRatings] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
-      const [playerRes, statsRes] = await Promise.all([
+      const [playerRes, statsRes, ratingsRes] = await Promise.all([
         fetch(`/api/players/${id}`),
         fetch(`/api/players/${id}/stats`),
+        fetch(`/api/players/${id}/ratings`),
       ]);
-      const playerData = await playerRes.json();
-      const statsData = await statsRes.json();
+      const playerData  = await playerRes.json();
+      const statsData   = await statsRes.json();
+      const ratingsData = await ratingsRes.json();
       setPlayer(playerData);
       setStats(statsData);
+      setRatings(ratingsData);
       setLoading(false);
     }
     load();
@@ -130,6 +134,55 @@ export default function PlayerDetailPage() {
             <div style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>Rating: {rating}</div>
           </div>
         </div>
+
+        {/* Percentile Ratings */}
+        {ratings && (
+          <div className="card" style={{ padding: 28 }}>
+            <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, marginBottom: 4 }}>
+              Player Ratings
+            </div>
+            <div style={{ fontSize: 12, color: "#64748b", marginBottom: 24 }}>
+              Percentile rank among {ratings.positionGroup} ({ratings.groupSize} qualified players · min 20 GP)
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {[
+                { label: "Overall",      value: ratings.percentiles.overall,      color: "#f59e0b" },
+                { label: "5v5 Offense",  value: ratings.percentiles.offense,      color: "#22d3ee" },
+                { label: "5v5 Defense",  value: ratings.percentiles.defense,      color: "#4ade80" },
+                { label: "Power Play",   value: ratings.percentiles.powerPlay,    color: "#818cf8" },
+                { label: "Penalty Kill", value: ratings.percentiles.penaltyKill,  color: "#f87171" },
+              ].map(({ label, value, color }) => (
+                <div key={label}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: "#94a3b8" }}>{label}</span>
+                    {value !== null ? (
+                      <span style={{ fontSize: 13, fontWeight: 800, color }}>
+                        {value}th percentile
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: 12, color: "#475569" }}>
+                        {label === "Power Play" ? "Not enough PP ice time" :
+                         label === "Penalty Kill" ? "Not enough PK ice time" :
+                         "MoneyPuck data pending"}
+                      </span>
+                    )}
+                  </div>
+                  {value !== null && (
+                    <div style={{ height: 6, background: "#111c2d", borderRadius: 999 }}>
+                      <div style={{
+                        height: "100%",
+                        width: `${value}%`,
+                        background: color,
+                        borderRadius: 999,
+                        transition: "width 0.6s ease",
+                      }} />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Chart */}
         {chartData.length > 1 && (

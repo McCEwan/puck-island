@@ -38,7 +38,7 @@ async function syncPlayers() {
   for (const abbr of ALL_TEAMS) {
     try {
       const data = await nhlFetch(`${NHL}/roster/${abbr}/current`);
-      const all  = [...(data.forwards??[]), ...(data.defensemen??[]), ...(data.goalies??[])];
+      const all  = [...(data.forwards??[]), ...(data.defensemen??[])];
       const rows = all.map((p: any) => ({
         id:              p.id,
         full_name:       `${p.firstName.default} ${p.lastName.default}`,

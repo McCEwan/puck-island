@@ -209,6 +209,7 @@ export default function PuckIsland() {
     }
 
     return [...seen.values()]
+      .filter(p => p.players.position !== 'G')
       .map(p => ({
         id:       p.player_id,
         name:     p.players.full_name,
@@ -305,7 +306,7 @@ export default function PuckIsland() {
                 <div className="pill" style={{ marginBottom: 16 }}>V1 Prototype · Live NHL Data</div>
                 <div className="page-title" style={{ color: "#e2e8f0", marginBottom: 12 }}>Track NHL players,<br/>teams & trends.</div>
                 <p style={{ color: "#64748b", lineHeight: 1.6, maxWidth: 480, marginBottom: 8 }}>
-                  A clean stats explorer backed by the official NHL API. Future versions will add Corsi, Fenwick, and prospect projection models.
+                  A clean stats explorer backed by the official NHL API and MoneyPuck advanced metrics.
                 </p>
                 <p style={{ fontSize: 12, color: "#22d3ee88", marginBottom: 24 }}>{loadingMsg}</p>
                 <div style={{ display: "flex", gap: 12 }}>
@@ -336,33 +337,6 @@ export default function PuckIsland() {
                 </div>
               </div>
             </div>
-
-            {/* Stat Cards */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
-              <StatCard icon={<Users size={18} />}    label="Players Tracked"  value={enrichedPlayers.length} />
-              <StatCard icon={<Shield size={18} />}   label="Featured Teams"   value={FEATURED_TEAMS.length} />
-              <StatCard icon={<BarChart3 size={18} />} label="Live Standings"   value={standings.length > 0 ? standings.length : "—"} />
-              <StatCard icon={<Activity size={18} />} label="Analytics Stage"  value="V1" />
-            </div>
-
-            {/* Real Rosters */}
-            {FEATURED_TEAMS.map((abbr) => {
-              const roster = rosters[abbr];
-              if (!roster) return null;
-              return (
-                <div className="card" key={abbr} style={{ padding: 24 }}>
-                  <div className="section-title" style={{ marginBottom: 16, color: "#e2e8f0" }}>{abbr} Roster</div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 8 }}>
-                    {roster.map((p) => (
-                      <div key={p.id} style={{ background: "#111c2d", borderRadius: 8, padding: "10px 14px" }}>
-                        <div style={{ fontWeight: 600, fontSize: 13 }}>{p.name}</div>
-                        <div style={{ fontSize: 11, color: "#64748b" }}>#{p.sweaterNumber} · {p.position}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
           </div>
         )}
 
