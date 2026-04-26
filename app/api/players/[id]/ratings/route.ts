@@ -6,8 +6,24 @@ const supabase = createClient(
   process.env.SUPABASE_KEY!
 );
 
+function per60(stat: number, icetime: number) {
+  return icetime > 0 ? (stat / icetime) * 60 : 0;
+}
+
+function percentileRank(value: number, values: number[]) {
+  const sorted = [...values].sort((a, b) => a - b);
+  const below  = sorted.filter(v => v < value).length;
+  return Math.round((below / sorted.length) * 100);
+}
+
+function inversePercentileRank(value: number, values: number[]) {
+  return 100 - percentileRank(value, values);
+}
+
 export async function GET(_req: NextRequest, ctx: RouteContext<'/api/players/[id]/ratings'>) {
   const { id } = await ctx.params;
+  const { searchParams } = new URL(_req.url);
+  const season = searchParams.get('season') ?? '2025-26';
 
   const { data: player } = await supabase
     .from('players')
@@ -19,69 +35,132 @@ export async function GET(_req: NextRequest, ctx: RouteContext<'/api/players/[id
 
   const isD = player.position === 'D';
 
-  const { searchParams } = new URL(_req.url);
-  const season = searchParams.get('season') ?? '2025-26';
-
-  const { data: allStats } = await supabase
+  // ── Basic season stats ──
+  const { data: allBasic } = await supabase
     .from('player_season_stats')
     .select(`
-      player_id,
-      gp, g, a, pts, shots,
+      player_id, gp, g, a, pts, shots,
       players!inner (position)
     `)
     .neq('players.position', 'G')
     .eq('season_id', season)
-    .gt('gp', 20);
+    .gt('gp', 30);
 
-  if (!allStats) return Response.json({ error: 'No stats' }, { status: 500 });
+  if (!allBasic) return Response.json({ error: 'No stats' }, { status: 500 });
 
-  const grouped = allStats.filter((s: any) =>
+  // ── MoneyPuck 5v5 stats ──
+  const mpSeason = parseInt(season.split('-')[1]) + 2000;
+
+  const { data: allMP } = await supabase
+    .from('mp_skater_stats')
+    .select('*')
+    .eq('season', mpSeason)
+    .eq('situation', '5on5');
+
+  // Filter to position group
+  const posGroupBasic = allBasic.filter((s: any) =>
     isD ? s.players.position === 'D' : s.players.position !== 'D'
   );
 
-  function pctRank(value: number, values: number[]) {
-    const sorted = [...values].sort((a, b) => a - b);
-    const below = sorted.filter(v => v < value).length;
-    return Math.round((below / sorted.length) * 100);
-  }
+  const playerIdsInGroup = new Set(posGroupBasic.map((s: any) => s.player_id));
 
-  function calcStats(rows: any[]) {
-    return rows.map(r => ({
-      player_id: r.player_id,
-      ppg:      r.gp > 0 ? r.pts / r.gp : 0,
-      gpg:      r.gp > 0 ? r.g   / r.gp : 0,
-      apg:      r.gp > 0 ? r.a   / r.gp : 0,
-      shPct:    r.shots > 0 ? r.g / r.shots : 0,
-      shotRate: r.gp > 0 ? r.shots / r.gp : 0,
-    }));
-  }
-
-  const computed = calcStats(grouped);
-  const target   = computed.find((c: any) => c.player_id === parseInt(id));
-
-  if (!target) return Response.json({ error: 'Player not in position group' }, { status: 404 });
-
-  const ppgs      = computed.map((c: any) => c.ppg);
-  const gpgs      = computed.map((c: any) => c.gpg);
-  const shotRates = computed.map((c: any) => c.shotRate);
-
-  const offense = Math.round(
-    pctRank(target.ppg,      ppgs)      * (isD ? 0.40 : 0.45) +
-    pctRank(target.gpg,      gpgs)      * (isD ? 0.35 : 0.35) +
-    pctRank(target.shotRate, shotRates) * (isD ? 0.25 : 0.20)
+  const posGroupMP = (allMP ?? []).filter((s: any) =>
+    playerIdsInGroup.has(s.player_id)
   );
-  const overall = offense;
+
+  const basicMap = new Map(posGroupBasic.map((s: any) => [s.player_id, s]));
+  const mpMap    = new Map(posGroupMP.map((s: any) => [s.player_id, s]));
+
+  const targetBasic = basicMap.get(parseInt(id));
+  const targetMP    = mpMap.get(parseInt(id));
+
+  if (!targetBasic) {
+    return Response.json({ error: 'Player not in qualified pool' }, { status: 404 });
+  }
+
+  // ── OFFENSE (basic stats) ──
+  const ppgs      = posGroupBasic.map((s: any) => s.gp > 0 ? s.pts    / s.gp : 0);
+  const gpgs      = posGroupBasic.map((s: any) => s.gp > 0 ? s.g      / s.gp : 0);
+  const apgs      = posGroupBasic.map((s: any) => s.gp > 0 ? s.a      / s.gp : 0);
+  const shotRates = posGroupBasic.map((s: any) => s.gp > 0 ? s.shots  / s.gp : 0);
+
+  const tPPG      = targetBasic.gp > 0 ? targetBasic.pts   / targetBasic.gp : 0;
+  const tGPG      = targetBasic.gp > 0 ? targetBasic.g     / targetBasic.gp : 0;
+  const tAPG      = targetBasic.gp > 0 ? targetBasic.a     / targetBasic.gp : 0;
+  const tShotRate = targetBasic.gp > 0 ? targetBasic.shots / targetBasic.gp : 0;
+
+  let offense: number;
+  if (isD) {
+    offense = Math.round(
+      percentileRank(tPPG,      ppgs)      * 0.35 +
+      percentileRank(tAPG,      apgs)      * 0.30 +
+      percentileRank(tShotRate, shotRates) * 0.20 +
+      percentileRank(tGPG,      gpgs)      * 0.15
+    );
+  } else {
+    offense = Math.round(
+      percentileRank(tPPG,      ppgs)      * 0.40 +
+      percentileRank(tGPG,      gpgs)      * 0.30 +
+      percentileRank(tAPG,      apgs)      * 0.20 +
+      percentileRank(tShotRate, shotRates) * 0.10
+    );
+  }
+
+  // ── DEFENSE (MoneyPuck) ──
+  let defense: number | null = null;
+
+  if (targetMP && posGroupMP.length > 10) {
+    const xga60s    = posGroupMP.map((s: any) => per60(s.xga,           s.icetime));
+    const ca60s     = posGroupMP.map((s: any) => per60(s.ca,            s.icetime));
+    const hdxa60s   = posGroupMP.map((s: any) => per60(s.sca,           s.icetime));
+    const blk60s    = posGroupMP.map((s: any) => per60(s.shots_blocked, s.icetime));
+    const relXGPcts = posGroupMP.map((s: any) =>
+      (s.on_ice_xg_pct ?? 50) - (s.off_ice_xg_pct ?? 50)
+    );
+
+    const tXGA60    = per60(targetMP.xga,           targetMP.icetime);
+    const tCA60     = per60(targetMP.ca,             targetMP.icetime);
+    const tHDXA60   = per60(targetMP.sca,            targetMP.icetime);
+    const tBlk60    = per60(targetMP.shots_blocked,  targetMP.icetime);
+    const tRelXGPct = (targetMP.on_ice_xg_pct ?? 50) - (targetMP.off_ice_xg_pct ?? 50);
+
+    if (isD) {
+      defense = Math.round(
+        inversePercentileRank(tXGA60,    xga60s)    * 0.30 +
+        inversePercentileRank(tCA60,     ca60s)     * 0.20 +
+        inversePercentileRank(tHDXA60,   hdxa60s)   * 0.20 +
+        inversePercentileRank(tRelXGPct, relXGPcts) * 0.20 +
+        percentileRank(tBlk60,           blk60s)    * 0.10
+      );
+    } else {
+      defense = Math.round(
+        inversePercentileRank(tXGA60,    xga60s)    * 0.35 +
+        inversePercentileRank(tCA60,     ca60s)     * 0.25 +
+        inversePercentileRank(tHDXA60,   hdxa60s)   * 0.20 +
+        inversePercentileRank(tRelXGPct, relXGPcts) * 0.20
+      );
+    }
+  }
+
+  // ── OVERALL ──
+  let overall: number | null = null;
+  if (defense !== null) {
+    overall = isD
+      ? Math.round(offense * 0.35 + defense * 0.65)
+      : Math.round(offense * 0.60 + defense * 0.40);
+  } else {
+    overall = offense;
+  }
 
   return Response.json({
     position:      player.position,
     positionGroup: isD ? 'defensemen' : 'forwards',
-    groupSize:     grouped.length,
+    groupSize:     posGroupBasic.length,
+    hasAdvanced:   defense !== null,
     percentiles: {
       overall,
       offense,
-      defense:     null,
-      powerPlay:   null,
-      penaltyKill: null,
+      defense,
     }
   });
 }

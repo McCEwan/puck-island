@@ -140,15 +140,16 @@ export default function PlayerDetailPage() {
               Player Ratings
             </div>
             <div style={{ fontSize: 12, color: "#64748b", marginBottom: 24 }}>
-              Percentile rank among {ratings.positionGroup} · {ratings.groupSize} qualified players · min 20 GP
+              Percentile rank among {ratings.positionGroup} · {ratings.groupSize} qualified players · min 30 GP
+              {ratings.hasAdvanced
+                ? " · Defense includes MoneyPuck advanced metrics"
+                : " · Defense pending MoneyPuck data"}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               {[
-                { label: "Overall",      value: ratings.percentiles.overall,      color: "#f59e0b" },
-                { label: "5v5 Offense",  value: ratings.percentiles.offense,      color: "#22d3ee" },
-                { label: "5v5 Defense",  value: ratings.percentiles.defense,      color: "#4ade80" },
-                { label: "Power Play",   value: ratings.percentiles.powerPlay,    color: "#818cf8" },
-                { label: "Penalty Kill", value: ratings.percentiles.penaltyKill,  color: "#f87171" },
+                { label: "Overall",     value: ratings.percentiles.overall, color: "#f59e0b" },
+                { label: "5v5 Offense", value: ratings.percentiles.offense, color: "#22d3ee" },
+                { label: "5v5 Defense", value: ratings.percentiles.defense, color: "#4ade80" },
               ].map(({ label, value, color }) => (
                 <div key={label}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
