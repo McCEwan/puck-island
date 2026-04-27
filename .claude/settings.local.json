@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Copy-Item \"c:\\\\Users\\\\ewant\\\\puck-island\\\\public\\\\logo.png\" \"c:\\\\Users\\\\ewant\\\\puck-island\\\\app\\\\icon.png\" -Force)"
+    ]
+  }
+}

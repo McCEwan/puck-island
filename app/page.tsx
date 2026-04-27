@@ -4,8 +4,8 @@
 import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Search, Trophy, Users, BarChart3, Star,
-  Activity, ArrowLeft, TrendingUp, Zap,
+  Search, Star,
+  ArrowLeft, TrendingUp, Zap,
 } from "lucide-react";
 import {
   LineChart, Line, BarChart, Bar,
@@ -24,11 +24,6 @@ const NHLApi = {
 
   async getTeams() {
     const res = await fetch('/api/teams');
-    return res.json();
-  },
-
-  async getPlayers() {
-    const res = await fetch('/api/players');
     return res.json();
   },
 
@@ -132,7 +127,6 @@ export default function PuckIsland() {
   const [standings,       setStandings]       = useState([]);
   const [rosters,         setRosters]         = useState({});
   const [dbTeams,         setDbTeams]         = useState([]);
-  const [dbPlayers,       setDbPlayers]       = useState([]);
   const [playerStats,     setPlayerStats]     = useState([]);
   const [listPercentiles, setListPercentiles] = useState<Record<number, { overall: number | null, offense: number | null, defense: number | null, powerPlay: number | null, penaltyKill: number | null }>>({});
   const [loadingMsg,      setLoadingMsg]      = useState("Connecting to NHL API…");
@@ -142,11 +136,7 @@ export default function PuckIsland() {
       try {
         // Load from Supabase
         const dbTeams = await NHLApi.getTeams();
-        const dbPlayers = await NHLApi.getPlayers();
-        console.log('DB Teams:', dbTeams);
-        console.log('DB Players:', dbPlayers);
         setDbTeams(dbTeams);
-        setDbPlayers(dbPlayers);
 
         // Load live NHL data
         const raw = await NHLApi.getStandings();
@@ -195,23 +185,6 @@ export default function PuckIsland() {
     refreshBulkRatings();
   }, [selectedSeason]);
 
-  // ── Derived / filtered ──
-  // FIX: all dependencies (query, teamFilter, sortKey, enrichedPlayers) now exist before this call
-  const filteredPlayers = useMemo(() =>
-    enrichedPlayers
-      .filter((p) => teamFilter === "ALL" || p.team === teamFilter)
-      .filter((p) =>
-        p.name.toLowerCase().includes(query.toLowerCase()) ||
-        p.team.toLowerCase().includes(query.toLowerCase())
-      )
-      .sort((a, b) => Number(b[sortKey]) - Number(a[sortKey])),
-    [query, teamFilter, sortKey, enrichedPlayers]
-  );
-
-  const leagueLeaders = useMemo(() =>
-    [...enrichedPlayers].sort((a, b) => b.pts - a.pts).slice(0, 5),
-    [enrichedPlayers]
-  );
 
   const featuredStandings = useMemo(() =>
     dbTeams.map((t) =>
@@ -366,41 +339,17 @@ export default function PuckIsland() {
         {page === "home" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
             {/* Hero */}
-            <div style={{ display: "grid", gridTemplateColumns: "1.4fr .6fr", gap: 20 }}>
-              <div className="card" style={{ padding: 40, background: "linear-gradient(135deg, #0d1623 0%, #0a1a2e 100%)", position: "relative", overflow: "hidden" }}>
-                <div style={{ position: "absolute", right: -40, top: -40, width: 300, height: 300, borderRadius: "50%", background: "#22d3ee08", pointerEvents: "none" }} />
-                <div className="pill" style={{ marginBottom: 16 }}>V1 Prototype · Live NHL Data</div>
-                <div className="page-title" style={{ color: "#e2e8f0", marginBottom: 12 }}>Track NHL players,<br/>teams & trends.</div>
-                <p style={{ color: "#64748b", lineHeight: 1.6, maxWidth: 480, marginBottom: 8 }}>
-                  A clean stats explorer backed by the official NHL API and MoneyPuck advanced metrics.
-                </p>
-                <p style={{ fontSize: 12, color: "#22d3ee88", marginBottom: 24 }}>{loadingMsg}</p>
-                <div style={{ display: "flex", gap: 12 }}>
-                  <button className="btn-primary" onClick={() => setPage("players")}>Explore Players</button>
-                  <button className="btn-ghost" onClick={() => setPage("compare")}>Compare Players</button>
-                </div>
-              </div>
-
-              {/* League Leaders */}
-              <div className="card" style={{ padding: 24 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-                  <Trophy size={18} color="#22d3ee" />
-                  <span className="section-title">Leaders</span>
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {leagueLeaders.map((p, i) => (
-                    <button key={p.id} onClick={() => { setSelectedPlayer(p); setPage("player"); }}
-                      style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#111c2d", border: "none", borderRadius: 10, padding: "12px 14px", cursor: "pointer", color: "inherit", width: "100%", transition: "background .15s" }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = "#162030"}
-                      onMouseLeave={(e) => e.currentTarget.style.background = "#111c2d"}>
-                      <div style={{ textAlign: "left" }}>
-                        <div style={{ fontWeight: 700, fontSize: 14 }}>{i + 1}. {p.name}</div>
-                        <div style={{ fontSize: 12, color: "#64748b" }}>{p.team} · {p.position}</div>
-                      </div>
-                      <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, color: "#22d3ee", letterSpacing: ".04em" }}>{p.pts}</div>
-                    </button>
-                  ))}
-                </div>
+            <div className="card" style={{ padding: 40, background: "linear-gradient(135deg, #0d1623 0%, #0a1a2e 100%)", position: "relative", overflow: "hidden" }}>
+              <div style={{ position: "absolute", right: -40, top: -40, width: 300, height: 300, borderRadius: "50%", background: "#22d3ee08", pointerEvents: "none" }} />
+              <div className="pill" style={{ marginBottom: 16 }}>V1 Prototype · Live NHL Data</div>
+              <div className="page-title" style={{ color: "#e2e8f0", marginBottom: 12 }}>Track NHL players,<br/>teams & trends.</div>
+              <p style={{ color: "#64748b", lineHeight: 1.6, maxWidth: 600, marginBottom: 8 }}>
+                A clean stats explorer backed by the official NHL API and MoneyPuck advanced metrics.
+              </p>
+              <p style={{ fontSize: 12, color: "#22d3ee88", marginBottom: 24 }}>{loadingMsg}</p>
+              <div style={{ display: "flex", gap: 12 }}>
+                <button className="btn-primary" onClick={() => setPage("players")}>Explore Players</button>
+                <button className="btn-ghost" onClick={() => setPage("compare")}>Compare Players</button>
               </div>
             </div>
           </div>
@@ -750,21 +699,6 @@ export default function PuckIsland() {
           </div>
         )}
       </main>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────
-// SMALL UI COMPONENTS
-// ─────────────────────────────────────────────
-function StatCard({ icon, label, value }) {
-  return (
-    <div className="card" style={{ display: "flex", alignItems: "center", gap: 16, padding: 20 }}>
-      <div style={{ background: "#22d3ee12", borderRadius: 10, padding: 10, color: "#22d3ee", display: "flex" }}>{icon}</div>
-      <div>
-        <div style={{ fontSize: 12, color: "#64748b", marginBottom: 2 }}>{label}</div>
-        <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, letterSpacing: ".04em" }}>{value}</div>
-      </div>
     </div>
   );
 }
