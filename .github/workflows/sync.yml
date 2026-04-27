@@ -1,0 +1,29 @@
+name: Daily Stats Sync
+
+on:
+  schedule:
+    - cron: '0 6 * * *'   # 6am UTC every day
+  workflow_dispatch:        # allows manual trigger from GitHub Actions tab
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run stats sync
+        run: npx ts-node scripts/syncStats.ts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
