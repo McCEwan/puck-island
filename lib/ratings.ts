@@ -13,6 +13,7 @@ function percentileRank(value: number, values: number[]) {
 export type SituationStats = {
   situation: string;
   icetime: number;
+  games_played: number;
   xgf: number; xga: number;
   cf: number;  ca: number;
   ff: number;  fa: number;

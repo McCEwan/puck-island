@@ -102,33 +102,35 @@ export async function GET(req: Request) {
     if (entries5v5.length > 10) {
       const norm = entries5v5.map(({ basic, mp }) => ({ basic, mp: normalizeMP(mp) }));
 
-      const pts5v5s   = norm.map(({ mp }) => mp.points);
-      const paPGs     = norm.map(({ mp }) => mp.primary_assists);
-      const xgf60s    = norm.map(({ mp }) => per60(mp.xgf, mp.icetime));
-      const ixg60s    = norm.map(({ mp }) => per60(mp.individual_xg, mp.icetime));
-      const xga60s    = norm.map(({ mp }) => per60(mp.xga,          mp.icetime));
-      const ca60s     = norm.map(({ mp }) => per60(mp.ca,           mp.icetime));
-      const hdxa60s   = norm.map(({ mp }) => per60(mp.sca,          mp.icetime));
-      const blk60s    = norm.map(({ mp }) => per60(mp.shots_blocked, mp.icetime));
-      const relXGPcts = norm.map(({ mp }) => (mp.on_ice_xg_pct ?? 50) - (mp.off_ice_xg_pct ?? 50));
+      const paPGs      = norm.map(({ mp }) => mp.primary_assists);
+      const pts5v5_60s = norm.map(({ mp }) => per60(mp.points,         mp.icetime));
+      const xgf60s     = norm.map(({ mp }) => per60(mp.xgf,            mp.icetime));
+      const ixg60s     = norm.map(({ mp }) => per60(mp.individual_xg,  mp.icetime));
+      const xga60s     = norm.map(({ mp }) => per60(mp.xga,            mp.icetime));
+      const ca60s      = norm.map(({ mp }) => per60(mp.ca,             mp.icetime));
+      const hdxa60s    = norm.map(({ mp }) => per60(mp.sca,            mp.icetime));
+      const blk60s     = norm.map(({ mp }) => per60(mp.shots_blocked,  mp.icetime));
+      const relXGPcts  = norm.map(({ mp }) => (mp.on_ice_xg_pct ?? 50) - (mp.off_ice_xg_pct ?? 50));
 
       const offenseRaw = norm.map((_, i) =>
-        percentileRank(paPGs[i],   paPGs)   * 0.35 +
-        percentileRank(xgf60s[i],  xgf60s)  * 0.30 +
-        percentileRank(pts5v5s[i], pts5v5s) * 0.20 +
-        percentileRank(ixg60s[i],  ixg60s)  * 0.15
+        percentileRank(relXGPcts[i],   relXGPcts)   * 0.25 +
+        percentileRank(ixg60s[i],      ixg60s)      * 0.25 +
+        percentileRank(paPGs[i],       paPGs)       * 0.20 +
+        percentileRank(pts5v5_60s[i],  pts5v5_60s)  * 0.15 +
+        percentileRank(xgf60s[i],      xgf60s)      * 0.15
       );
 
       const defenseRaw = norm.map((_, i) => isD
-        ? inversePercentileRank(xga60s[i],  xga60s)   * 0.35 +
-          inversePercentileRank(ca60s[i],   ca60s)    * 0.25 +
-          inversePercentileRank(hdxa60s[i], hdxa60s)  * 0.20 +
-          percentileRank(relXGPcts[i], relXGPcts)     * 0.10 +
-          percentileRank(blk60s[i],    blk60s)        * 0.10
-        : inversePercentileRank(xga60s[i],  xga60s)   * 0.40 +
-          inversePercentileRank(ca60s[i],   ca60s)    * 0.30 +
-          inversePercentileRank(hdxa60s[i], hdxa60s)  * 0.20 +
-          percentileRank(relXGPcts[i], relXGPcts)     * 0.10
+        ? percentileRank(relXGPcts[i],  relXGPcts)     * 0.30 +
+          inversePercentileRank(xga60s[i],   xga60s)   * 0.20 +
+          inversePercentileRank(hdxa60s[i],  hdxa60s)  * 0.15 +
+          inversePercentileRank(ca60s[i],    ca60s)    * 0.15 +
+          percentileRank(blk60s[i],     blk60s)        * 0.10 +
+          percentileRank(xgf60s[i],     xgf60s)        * 0.10
+        : percentileRank(relXGPcts[i],  relXGPcts)     * 0.35 +
+          inversePercentileRank(xga60s[i],   xga60s)   * 0.25 +
+          inversePercentileRank(hdxa60s[i],  hdxa60s)  * 0.20 +
+          inversePercentileRank(ca60s[i],    ca60s)    * 0.20
       );
 
       const overallRaw = norm.map((_, i) => isD

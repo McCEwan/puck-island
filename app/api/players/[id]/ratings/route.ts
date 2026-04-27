@@ -104,35 +104,37 @@ export async function GET(_req: NextRequest, ctx: RouteContext<'/api/players/[id
   let overall: number | null = null;
 
   if (entries5v5.length > 10 && target5v5Idx !== -1) {
-    const pts5v5s   = entries5v5.map(({ mp }: any) => mp.points);
-    const paPGs     = entries5v5.map(({ mp }: any) => mp.primary_assists);
-    const xgf60s    = entries5v5.map(({ mp }: any) => per60(mp.xgf, mp.icetime));
-    const ixg60s    = entries5v5.map(({ mp }: any) => per60(mp.individual_xg, mp.icetime));
-    const xga60s    = entries5v5.map(({ mp }: any) => per60(mp.xga,          mp.icetime));
-    const ca60s     = entries5v5.map(({ mp }: any) => per60(mp.ca,           mp.icetime));
-    const hdxa60s   = entries5v5.map(({ mp }: any) => per60(mp.sca,          mp.icetime));
-    const blk60s    = entries5v5.map(({ mp }: any) => per60(mp.shots_blocked, mp.icetime));
-    const relXGPcts = entries5v5.map(({ mp }: any) =>
+    const paPGs      = entries5v5.map(({ mp }: any) => mp.primary_assists);
+    const pts5v5_60s = entries5v5.map(({ mp }: any) => per60(mp.points,        mp.icetime));
+    const xgf60s     = entries5v5.map(({ mp }: any) => per60(mp.xgf,           mp.icetime));
+    const ixg60s     = entries5v5.map(({ mp }: any) => per60(mp.individual_xg, mp.icetime));
+    const xga60s     = entries5v5.map(({ mp }: any) => per60(mp.xga,           mp.icetime));
+    const ca60s      = entries5v5.map(({ mp }: any) => per60(mp.ca,            mp.icetime));
+    const hdxa60s    = entries5v5.map(({ mp }: any) => per60(mp.sca,           mp.icetime));
+    const blk60s     = entries5v5.map(({ mp }: any) => per60(mp.shots_blocked, mp.icetime));
+    const relXGPcts  = entries5v5.map(({ mp }: any) =>
       (mp.on_ice_xg_pct ?? 50) - (mp.off_ice_xg_pct ?? 50)
     );
 
     const offenseRaw = entries5v5.map((_: any, i: number) =>
-      percentileRank(paPGs[i],   paPGs)   * 0.35 +
-      percentileRank(xgf60s[i],  xgf60s)  * 0.30 +
-      percentileRank(pts5v5s[i], pts5v5s) * 0.20 +
-      percentileRank(ixg60s[i],  ixg60s)  * 0.15
+      percentileRank(relXGPcts[i],  relXGPcts)  * 0.25 +
+      percentileRank(ixg60s[i],     ixg60s)     * 0.25 +
+      percentileRank(paPGs[i],      paPGs)      * 0.20 +
+      percentileRank(pts5v5_60s[i], pts5v5_60s) * 0.15 +
+      percentileRank(xgf60s[i],     xgf60s)     * 0.15
     );
 
     const defenseRaw = entries5v5.map((_: any, i: number) => isD
-      ? inversePercentileRank(xga60s[i],  xga60s)   * 0.35 +
-        inversePercentileRank(ca60s[i],   ca60s)    * 0.25 +
-        inversePercentileRank(hdxa60s[i], hdxa60s)  * 0.20 +
-        percentileRank(relXGPcts[i], relXGPcts)     * 0.10 +
-        percentileRank(blk60s[i],    blk60s)        * 0.10
-      : inversePercentileRank(xga60s[i],  xga60s)   * 0.40 +
-        inversePercentileRank(ca60s[i],   ca60s)    * 0.30 +
-        inversePercentileRank(hdxa60s[i], hdxa60s)  * 0.20 +
-        percentileRank(relXGPcts[i], relXGPcts)     * 0.10
+      ? percentileRank(relXGPcts[i],  relXGPcts)     * 0.30 +
+        inversePercentileRank(xga60s[i],   xga60s)   * 0.20 +
+        inversePercentileRank(hdxa60s[i],  hdxa60s)  * 0.15 +
+        inversePercentileRank(ca60s[i],    ca60s)    * 0.15 +
+        percentileRank(blk60s[i],     blk60s)        * 0.10 +
+        percentileRank(xgf60s[i],     xgf60s)        * 0.10
+      : percentileRank(relXGPcts[i],  relXGPcts)     * 0.35 +
+        inversePercentileRank(xga60s[i],   xga60s)   * 0.25 +
+        inversePercentileRank(hdxa60s[i],  hdxa60s)  * 0.20 +
+        inversePercentileRank(ca60s[i],    ca60s)    * 0.20
     );
 
     const overallRaw = entries5v5.map((_: any, i: number) => isD
