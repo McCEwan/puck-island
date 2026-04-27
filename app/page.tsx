@@ -5,7 +5,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Search, Trophy, Users, BarChart3, Star,
-  Shield, Activity, ArrowLeft, TrendingUp, Zap,
+  Activity, ArrowLeft, TrendingUp, Zap,
 } from "lucide-react";
 import {
   LineChart, Line, BarChart, Bar,
@@ -344,9 +344,7 @@ export default function PuckIsland() {
       <header style={{ position: "sticky", top: 0, zIndex: 20, borderBottom: "1px solid #1e2d40", background: "#060b14ee", backdropFilter: "blur(12px)", padding: "0 32px" }}>
         <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", height: 64 }}>
           <button onClick={() => setPage("home")} style={{ display: "flex", alignItems: "center", gap: 12, background: "none", border: "none", cursor: "pointer", color: "inherit" }}>
-            <div style={{ background: "#22d3ee", borderRadius: 10, padding: 8, color: "#060b14", display: "flex" }}>
-              <Shield size={20} />
-            </div>
+            <img src="/logo.png" alt="PuckIsland" style={{ width: 44, height: 44, borderRadius: 10, objectFit: "contain" }} />
             <div style={{ textAlign: "left" }}>
               <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, letterSpacing: ".06em", color: "#e2e8f0" }}>PuckIsland</div>
               <div style={{ fontSize: 11, color: "#475569" }}>NHL stats & analytics</div>
