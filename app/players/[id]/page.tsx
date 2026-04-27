@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Star } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import {
   LineChart, Line, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid
@@ -22,10 +22,6 @@ function ordinal(n: number): string {
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
-function calcRating(gp, pts, g, shots) {
-  if (gp === 0) return 0;
-  return Math.round(((pts/gp)*45 + (g/gp)*25 + (shots/gp)*5) * 10) / 10;
-}
 
 export default function PlayerDetailPage() {
   const { id } = useParams();
@@ -118,10 +114,14 @@ export default function PlayerDetailPage() {
         .mini-stat { background: #111c2d; border-radius: 10px; padding: 14px; }
         .tr-hover:hover { background: #131f30; }
         .pill { display: inline-flex; align-items: center; gap: 4px; background: #22d3ee15; color: #22d3ee; border-radius: 999px; padding: 3px 10px; font-size: 12px; font-weight: 700; }
+        @media (max-width: 768px) {
+          .player-name { font-size: 36px !important; }
+          .player-pills { flex-wrap: wrap; gap: 8px !important; }
+        }
       `}</style>
 
-      <header style={{ borderBottom: "1px solid #1e2d40", padding: "0 32px" }}>
-        <div style={{ maxWidth: 1100, margin: "0 auto", height: 64, display: "flex", alignItems: "center" }}>
+      <header style={{ borderBottom: "1px solid #1e2d40", padding: "0 16px" }}>
+        <div style={{ maxWidth: 1100, margin: "0 auto", height: 56, display: "flex", alignItems: "center" }}>
           <button onClick={() => router.back()}
             style={{ display: "flex", alignItems: "center", gap: 8, background: "none", border: "1px solid #1e2d40", borderRadius: 10, padding: "8px 16px", color: "#94a3b8", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", fontSize: 14 }}>
             <ArrowLeft size={15} /> Back
@@ -129,7 +129,7 @@ export default function PlayerDetailPage() {
         </div>
       </header>
 
-      <main style={{ maxWidth: 1100, margin: "0 auto", padding: "32px 32px 80px", display: "flex", flexDirection: "column", gap: 24 }}>
+      <main style={{ maxWidth: 1100, margin: "0 auto", padding: "20px 16px 80px", display: "flex", flexDirection: "column", gap: 20 }}>
 
         {/* Player Card Header */}
         <div className="card" style={{ padding: 32 }}>
@@ -280,8 +280,7 @@ export default function PlayerDetailPage() {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 10 }}>
               {[["GP", bestSeason.gp], ["G", bestSeason.g], ["A", bestSeason.a], ["PTS", bestSeason.pts],
                 ["Shots", bestSeason.shots], ["SH%", bestSeason.shots > 0 ? `${((bestSeason.g/bestSeason.shots)*100).toFixed(1)}%` : "—"],
-                ["PPG", (bestSeason.pts/bestSeason.gp).toFixed(2)],
-                ["Rating", calcRating(bestSeason.gp, bestSeason.pts, bestSeason.g, bestSeason.shots)]
+                ["PPG", (bestSeason.pts/bestSeason.gp).toFixed(2)]
               ].map(([l, v]) => (
                 <div key={l} className="mini-stat">
                   <div style={{ fontSize: 11, color: "#64748b", textTransform: "uppercase", letterSpacing: ".08em", marginBottom: 4 }}>{l}</div>
@@ -301,7 +300,7 @@ export default function PlayerDetailPage() {
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
               <thead>
                 <tr style={{ background: "#111c2d", color: "#64748b" }}>
-                  {["Season","Team","GP","G","A","PTS","Shots","SH%","PPG","Rating"].map(h => (
+                  {["Season","Team","GP","G","A","PTS","Shots","SH%","PPG"].map(h => (
                     <th key={h} style={{ padding: "12px 16px", fontWeight: 600, fontSize: 12, textTransform: "uppercase", letterSpacing: ".06em", textAlign: "left" }}>{h}</th>
                   ))}
                 </tr>
@@ -318,7 +317,6 @@ export default function PlayerDetailPage() {
                     <td>{s.shots}</td>
                     <td>{s.shots > 0 ? `${((s.g/s.shots)*100).toFixed(1)}%` : "—"}</td>
                     <td>{(s.pts/s.gp).toFixed(2)}</td>
-                    <td><span className="pill"><Star size={11} />{calcRating(s.gp, s.pts, s.g, s.shots)}</span></td>
                   </tr>
                 ))}
               </tbody>

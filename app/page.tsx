@@ -3,25 +3,12 @@
 "use client";
 import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Search, Star,
-  ArrowLeft, TrendingUp, Zap,
-} from "lucide-react";
-import {
-  LineChart, Line, BarChart, Bar,
-  XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
-} from "recharts";
+import { Search } from "lucide-react";
 
 // ─────────────────────────────────────────────
 // DATA LAYER — swap these out for Supabase queries in production
 // ─────────────────────────────────────────────
 const NHLApi = {
-  async getStandings() {
-    const res = await fetch("/api/standings");
-    const data = await res.json();
-    return data.standings ?? [];
-  },
-
   async getTeams() {
     const res = await fetch('/api/teams');
     return res.json();
@@ -32,37 +19,7 @@ const NHLApi = {
     return res.json();
   },
 
-  async getRoster(teamAbbr: string) {
-    const res = await fetch(`/api/roster/${teamAbbr}`);
-    const data = await res.json();
-    return [
-      ...(data.forwards ?? []),
-      ...(data.defensemen ?? []),
-      ...(data.goalies ?? []),
-    ].map((p: any) => ({
-      id: p.id,
-      name: `${p.firstName?.default ?? ""} ${p.lastName?.default ?? ""}`.trim(),
-      position: p.positionCode ?? "N/A",
-      sweaterNumber: p.sweaterNumber ?? "—",
-    }));
-  },
 };
-
-// ─────────────────────────────────────────────
-// STATIC DATA (replace with Supabase queries after schema setup)
-// ─────────────────────────────────────────────
-const FEATURED_TEAMS = ["TOR", "EDM", "COL", "NYR", "VAN"];
-
-const MOCK_PLAYERS = [
-  { id: 8479318, name: "Auston Matthews",  team: "TOR", position: "C",  age: 28, gp: 81, g: 69,  a: 38,  pts: 107, shots: 369, plusMinus: 31, toi: "20:58", trend: [1,0,2,1,3,2,0,2,1,2] },
-  { id: 8481522, name: "Mitch Marner",     team: "TOR", position: "RW", age: 28, gp: 69, g: 26,  a: 59,  pts: 85,  shots: 198, plusMinus: 21, toi: "21:15", trend: [1,1,0,2,1,2,3,1,1,0] },
-  { id: 8478402, name: "Connor McDavid",   team: "EDM", position: "C",  age: 29, gp: 76, g: 32,  a: 100, pts: 132, shots: 263, plusMinus: 35, toi: "21:22", trend: [2,3,1,2,4,1,3,2,2,3] },
-  { id: 8477934, name: "Leon Draisaitl",   team: "EDM", position: "C",  age: 30, gp: 81, g: 41,  a: 65,  pts: 106, shots: 245, plusMinus: 26, toi: "20:41", trend: [0,2,2,1,3,2,1,0,3,1] },
-  { id: 8477492, name: "Nathan MacKinnon", team: "COL", position: "C",  age: 30, gp: 82, g: 51,  a: 89,  pts: 140, shots: 405, plusMinus: 35, toi: "22:49", trend: [3,1,2,2,4,3,1,2,2,3] },
-  { id: 8480069, name: "Cale Makar",       team: "COL", position: "D",  age: 27, gp: 77, g: 21,  a: 69,  pts: 90,  shots: 230, plusMinus: 15, toi: "24:46", trend: [1,1,2,0,2,1,1,3,0,1] },
-  { id: 8478550, name: "Artemi Panarin",   team: "NYR", position: "LW", age: 34, gp: 82, g: 49,  a: 71,  pts: 120, shots: 302, plusMinus: 18, toi: "20:07", trend: [2,1,2,3,2,1,0,2,4,1] },
-  { id: 8480800, name: "Quinn Hughes",     team: "VAN", position: "D",  age: 26, gp: 82, g: 17,  a: 75,  pts: 92,  shots: 199, plusMinus: 38, toi: "24:41", trend: [1,2,1,1,3,0,2,1,2,1] },
-];
 
 // ─────────────────────────────────────────────
 // HELPERS
@@ -73,21 +30,6 @@ function ordinal(n: number): string {
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
-function calcRating(p) {
-  const ppg      = p.pts / p.gp;
-  const gpg      = p.g   / p.gp;
-  const shotRate = p.shots / p.gp;
-  const plusBonus = Math.max(p.plusMinus, 0) / 20;
-  return Math.round((ppg * 45 + gpg * 25 + shotRate * 5 + plusBonus * 10) * 10) / 10;
-}
-
-function pct(num, den) {
-  return den === 0 ? 0 : Number(((num / den) * 100).toFixed(1));
-}
-
-function ptsPct(wins, ot, gp = 82) {
-  return (((wins * 2 + ot) / (gp * 2)) * 100).toFixed(1);
-}
 
 // ─────────────────────────────────────────────
 // MAIN COMPONENT
@@ -108,24 +50,7 @@ export default function PuckIsland() {
   const [statSortDir,    setStatSortDir]    = useState("desc");
   const [selectedSeason, setSelectedSeason] = useState("2025-26");
 
-  // ── Enriched static players (stable reference, computed once) ──
-  const enrichedPlayers = useMemo(() =>
-    MOCK_PLAYERS.map((p) => ({
-      ...p,
-      rating: calcRating(p),
-      ppg:    Number((p.pts / p.gp).toFixed(2)),
-      shPct:  pct(p.g, p.shots),
-    })), []
-  );
-
-  // FIX: selectedPlayer and compare states initialized AFTER enrichedPlayers
-  const [selectedPlayer, setSelectedPlayer] = useState(enrichedPlayers[0]);
-  const [compareA,       setCompareA]       = useState(enrichedPlayers[0]);
-  const [compareB,       setCompareB]       = useState(enrichedPlayers[1]);
-
   // ── Real NHL data ──
-  const [standings,       setStandings]       = useState([]);
-  const [rosters,         setRosters]         = useState({});
   const [dbTeams,         setDbTeams]         = useState([]);
   const [playerStats,     setPlayerStats]     = useState([]);
   const [listPercentiles, setListPercentiles] = useState<Record<number, { overall: number | null, offense: number | null, defense: number | null, powerPlay: number | null, penaltyKill: number | null }>>({});
@@ -134,25 +59,10 @@ export default function PuckIsland() {
   useEffect(() => {
     async function loadNHLData() {
       try {
-        // Load from Supabase
         const dbTeams = await NHLApi.getTeams();
         setDbTeams(dbTeams);
 
-        // Load live NHL data
-        const raw = await NHLApi.getStandings();
-        setStandings(raw);
-        setLoadingMsg("Standings loaded. Fetching rosters…");
-
-        const rosterEntries = await Promise.all(
-          FEATURED_TEAMS.map(async (abbr) => {
-            const players = await NHLApi.getRoster(abbr);
-            return [abbr, players];
-          })
-        );
-        setRosters(Object.fromEntries(rosterEntries));
-
         const stats = await NHLApi.getPlayerStats(selectedSeason);
-        console.log('Player Stats:', stats);
         setPlayerStats(stats);
         setLoadingMsg("Live NHL data loaded ✓");
 
@@ -185,13 +95,6 @@ export default function PuckIsland() {
     refreshBulkRatings();
   }, [selectedSeason]);
 
-
-  const featuredStandings = useMemo(() =>
-    dbTeams.map((t) =>
-      standings.find((s) => s.teamAbbrev?.default === t.abbreviation)
-    ).filter(Boolean),
-    [standings, dbTeams]
-  );
 
   const sortedStats = useMemo(() => {
     // Step 1: for each (player_id, team_id) pair keep the row with the most GP.
@@ -272,16 +175,6 @@ export default function PuckIsland() {
       });
   }, [playerStats, sortKey, statSortKey, statSortDir, listPercentiles, query, teamFilter, posFilter, minGP]);
 
-  // ── Derived for player detail page ──
-  const trendData = selectedPlayer.trend.map((v, i) => ({ game: `G${i + 1}`, points: v }));
-
-  const compareData = [
-    { stat: "Goals",   [compareA.name]: compareA.g,           [compareB.name]: compareB.g },
-    { stat: "Assists", [compareA.name]: compareA.a,           [compareB.name]: compareB.a },
-    { stat: "Points",  [compareA.name]: compareA.pts,         [compareB.name]: compareB.pts },
-    { stat: "Shots",   [compareA.name]: compareA.shots,       [compareB.name]: compareB.shots },
-    { stat: "Rating",  [compareA.name]: calcRating(compareA), [compareB.name]: calcRating(compareB) },
-  ];
 
   // ─────────────────────────────────────────────
   // RENDER
@@ -311,11 +204,17 @@ export default function PuckIsland() {
         input:focus, select:focus { border-color: #22d3ee; }
         .page-title { font-family: 'Bebas Neue', sans-serif; font-size: 48px; letter-spacing: .04em; line-height: 1; }
         .section-title { font-family: 'Bebas Neue', sans-serif; font-size: 28px; letter-spacing: .04em; }
+        @media (max-width: 768px) {
+          .page-title { font-size: 32px; }
+          .section-title { font-size: 22px; }
+          .nav-btn { padding: 6px 12px; font-size: 13px; }
+          input, select { font-size: 16px; }
+        }
       `}</style>
 
       {/* HEADER */}
-      <header style={{ position: "sticky", top: 0, zIndex: 20, borderBottom: "1px solid #1e2d40", background: "#060b14ee", backdropFilter: "blur(12px)", padding: "0 32px" }}>
-        <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", height: 64 }}>
+      <header style={{ position: "sticky", top: 0, zIndex: 20, borderBottom: "1px solid #1e2d40", background: "#060b14ee", backdropFilter: "blur(12px)", padding: "0 16px" }}>
+        <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", height: 56 }}>
           <button onClick={() => setPage("home")} style={{ display: "flex", alignItems: "center", gap: 12, background: "none", border: "none", cursor: "pointer", color: "inherit" }}>
             <img src="/logo.png" alt="PuckIsland" style={{ width: 44, height: 44, borderRadius: 10, objectFit: "contain" }} />
             <div style={{ textAlign: "left" }}>
@@ -324,7 +223,7 @@ export default function PuckIsland() {
             </div>
           </button>
           <nav style={{ display: "flex", gap: 4 }}>
-            {["home","players","teams","compare"].map((p) => (
+            {["home","players"].map((p) => (
               <button key={p} className={`nav-btn ${page === p ? "active" : ""}`} onClick={() => setPage(p)}>
                 {p.charAt(0).toUpperCase() + p.slice(1)}
               </button>
@@ -333,13 +232,13 @@ export default function PuckIsland() {
         </div>
       </header>
 
-      <main style={{ maxWidth: 1200, margin: "0 auto", padding: "32px 32px 80px" }}>
+      <main style={{ maxWidth: 1200, margin: "0 auto", padding: "20px 16px 80px" }}>
 
         {/* ══════════════ HOME ══════════════ */}
         {page === "home" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
             {/* Hero */}
-            <div className="card" style={{ padding: 40, background: "linear-gradient(135deg, #0d1623 0%, #0a1a2e 100%)", position: "relative", overflow: "hidden" }}>
+            <div className="card" style={{ padding: "28px 24px", background: "linear-gradient(135deg, #0d1623 0%, #0a1a2e 100%)", position: "relative", overflow: "hidden" }}>
               <div style={{ position: "absolute", right: -40, top: -40, width: 300, height: 300, borderRadius: "50%", background: "#22d3ee08", pointerEvents: "none" }} />
               <div className="pill" style={{ marginBottom: 16 }}>V1 Prototype · Live NHL Data</div>
               <div className="page-title" style={{ color: "#e2e8f0", marginBottom: 12 }}>Track NHL players,<br/>teams & trends.</div>
@@ -349,8 +248,102 @@ export default function PuckIsland() {
               <p style={{ fontSize: 12, color: "#22d3ee88", marginBottom: 24 }}>{loadingMsg}</p>
               <div style={{ display: "flex", gap: 12 }}>
                 <button className="btn-primary" onClick={() => setPage("players")}>Explore Players</button>
-                <button className="btn-ghost" onClick={() => setPage("compare")}>Compare Players</button>
               </div>
+            </div>
+
+            {/* ── Formula Documentation ── */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 20 }}>
+
+              {/* Offense */}
+              <div className="card" style={{ padding: 24 }}>
+                <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: "#22d3ee", marginBottom: 4 }}>5v5 Offense</div>
+                <div style={{ fontSize: 12, color: "#475569", marginBottom: 16 }}>Same formula for forwards and defensemen · min 200 min 5v5 ice</div>
+                {[
+                  { stat: "Primary Assists / GP",  weight: "35%", desc: "Direct passes leading to goals — most repeatable offensive metric" },
+                  { stat: "Individual xG / 60",    weight: "30%", desc: "Quality of shots you personally generate per 60 min" },
+                  { stat: "5v5 Points / 60",       weight: "20%", desc: "Overall even-strength scoring rate" },
+                  { stat: "On-ice xGF / 60",       weight: "15%", desc: "Expected goals for while you're on the ice" },
+                ].map(({ stat, weight, desc }) => (
+                  <div key={stat} style={{ marginBottom: 12 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 3 }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: "#e2e8f0" }}>{stat}</span>
+                      <span style={{ fontSize: 13, fontWeight: 800, color: "#22d3ee" }}>{weight}</span>
+                    </div>
+                    <div style={{ fontSize: 11, color: "#475569", lineHeight: 1.4 }}>{desc}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Defense — Forwards */}
+              <div className="card" style={{ padding: 24 }}>
+                <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: "#4ade80", marginBottom: 4 }}>5v5 Defense — Forwards</div>
+                <div style={{ fontSize: 12, color: "#475569", marginBottom: 16 }}>Min 200 min 5v5 ice · lower-is-better stats are inverted</div>
+                {[
+                  { stat: "Relative xG%",      weight: "35%", desc: "How much the team's xG ratio improves with you on ice vs off" },
+                  { stat: "xGA / 60",          weight: "25%", desc: "Expected goals against per 60 while on ice (lower = better)" },
+                  { stat: "HD xGA / 60",       weight: "20%", desc: "High-danger expected goals against (lower = better)" },
+                  { stat: "Corsi Against / 60",weight: "20%", desc: "Shot attempts against per 60 (lower = better)" },
+                ].map(({ stat, weight, desc }) => (
+                  <div key={stat} style={{ marginBottom: 12 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 3 }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: "#e2e8f0" }}>{stat}</span>
+                      <span style={{ fontSize: 13, fontWeight: 800, color: "#4ade80" }}>{weight}</span>
+                    </div>
+                    <div style={{ fontSize: 11, color: "#475569", lineHeight: 1.4 }}>{desc}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Defense — Defensemen */}
+              <div className="card" style={{ padding: 24 }}>
+                <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: "#4ade80", marginBottom: 4 }}>5v5 Defense — Defensemen</div>
+                <div style={{ fontSize: 12, color: "#475569", marginBottom: 16 }}>Min 200 min 5v5 ice · lower-is-better stats are inverted</div>
+                {[
+                  { stat: "Relative xG%",      weight: "30%", desc: "Team xG ratio improvement with you on ice vs off" },
+                  { stat: "xGA / 60",          weight: "20%", desc: "Expected goals against per 60 (lower = better)" },
+                  { stat: "HD xGA / 60",       weight: "15%", desc: "High-danger expected goals against (lower = better)" },
+                  { stat: "Corsi Against / 60",weight: "15%", desc: "Shot attempts against per 60 (lower = better)" },
+                  { stat: "Blocked Shots / 60",weight: "10%", desc: "Shots blocked per 60 minutes" },
+                  { stat: "On-ice xGF / 60",   weight: "10%", desc: "Offensive contribution while defending" },
+                ].map(({ stat, weight, desc }) => (
+                  <div key={stat} style={{ marginBottom: 12 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 3 }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: "#e2e8f0" }}>{stat}</span>
+                      <span style={{ fontSize: 13, fontWeight: 800, color: "#4ade80" }}>{weight}</span>
+                    </div>
+                    <div style={{ fontSize: 11, color: "#475569", lineHeight: 1.4 }}>{desc}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Overall */}
+              <div className="card" style={{ padding: 24 }}>
+                <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: "#f59e0b", marginBottom: 4 }}>Overall Rating</div>
+                <div style={{ fontSize: 12, color: "#475569", marginBottom: 16 }}>Weighted combination of 5v5 offense + defense · percentile ranked within position group</div>
+                {[
+                  { pos: "Forwards",   off: "80%", def: "20%" },
+                  { pos: "Defensemen", off: "35%", def: "65%" },
+                ].map(({ pos, off, def }) => (
+                  <div key={pos} style={{ marginBottom: 16, background: "#111c2d", borderRadius: 10, padding: 14 }}>
+                    <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 10, color: "#e2e8f0" }}>{pos}</div>
+                    <div style={{ display: "flex", gap: 12 }}>
+                      <div style={{ flex: 1, textAlign: "center" }}>
+                        <div style={{ fontSize: 11, color: "#64748b", marginBottom: 2 }}>Offense</div>
+                        <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, color: "#22d3ee" }}>{off}</div>
+                      </div>
+                      <div style={{ flex: 1, textAlign: "center" }}>
+                        <div style={{ fontSize: 11, color: "#64748b", marginBottom: 2 }}>Defense</div>
+                        <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, color: "#4ade80" }}>{def}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                <div style={{ fontSize: 11, color: "#475569", marginTop: 8 }}>
+                  PP rating: PP pts/60 (40%) + PP xGF/60 (35%) + PP primary A/60 (25%) · min 30s PP/game<br/>
+                  PK rating: xGA/60 (45%) + CA/60 (30%) + HD xGA/60 (25%) · min 30s PK/game
+                </div>
+              </div>
+
             </div>
           </div>
         )}
@@ -359,7 +352,7 @@ export default function PuckIsland() {
         {page === "players" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
             <PageTitle title="Player Explorer" sub={`${sortedStats.length} players — click any column to sort`} />
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
               {/* Search */}
               <div style={{ position: "relative" }}>
                 <Search size={15} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#475569", pointerEvents: "none" }} />
@@ -525,179 +518,6 @@ export default function PuckIsland() {
           </div>
         )}
 
-        {/* ══════════════ PLAYER DETAIL ══════════════ */}
-        {page === "player" && selectedPlayer && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-            <button className="btn-ghost" style={{ alignSelf: "flex-start", display: "flex", alignItems: "center", gap: 6 }}
-              onClick={() => setPage("players")}>
-              <ArrowLeft size={15} /> Back to players
-            </button>
-            <div style={{ display: "grid", gridTemplateColumns: ".85fr 1.15fr", gap: 20 }}>
-              {/* Bio + stats */}
-              <div className="card" style={{ padding: 28 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24 }}>
-                  <div>
-                    <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 36, letterSpacing: ".04em" }}>{selectedPlayer.name}</div>
-                    <div style={{ color: "#64748b", fontSize: 14 }}>{selectedPlayer.team} · {selectedPlayer.position} · Age {selectedPlayer.age}</div>
-                  </div>
-                  <div style={{ background: "#22d3ee12", borderRadius: 12, padding: "10px 16px", textAlign: "center" }}>
-                    <div style={{ fontSize: 11, color: "#64748b", marginBottom: 2 }}>Rating</div>
-                    <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 32, color: "#22d3ee", letterSpacing: ".04em" }}>{calcRating(selectedPlayer)}</div>
-                  </div>
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                  {[["Games",  selectedPlayer.gp],
-                    ["Goals",  selectedPlayer.g],
-                    ["Assists",selectedPlayer.a],
-                    ["Points", selectedPlayer.pts],
-                    ["Shots",  selectedPlayer.shots],
-                    ["SH%",    `${pct(selectedPlayer.g, selectedPlayer.shots)}%`],
-                    ["+/−",    selectedPlayer.plusMinus],
-                    ["TOI/GP", selectedPlayer.toi],
-                    ["PPG",    (selectedPlayer.pts / selectedPlayer.gp).toFixed(2)],
-                    ["GPG",    (selectedPlayer.g   / selectedPlayer.gp).toFixed(2)],
-                  ].map(([l, v]) => (
-                    <div key={l} className="mini-stat">
-                      <div className="label">{l}</div>
-                      <div className="value">{v}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              {/* Trend chart */}
-              <div className="card" style={{ padding: 28 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 20 }}>
-                  <TrendingUp size={18} color="#22d3ee" />
-                  <span className="section-title">Last 10 Games: Points</span>
-                </div>
-                <ResponsiveContainer width="100%" height={280}>
-                  <LineChart data={trendData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1e2d40" />
-                    <XAxis dataKey="game" tick={{ fill: "#64748b", fontSize: 12 }} />
-                    <YAxis allowDecimals={false} tick={{ fill: "#64748b", fontSize: 12 }} />
-                    <Tooltip contentStyle={{ background: "#0d1623", border: "1px solid #1e2d40", borderRadius: 8 }} />
-                    <Line type="monotone" dataKey="points" stroke="#22d3ee" strokeWidth={2.5} dot={{ fill: "#22d3ee", r: 4 }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ══════════════ TEAMS ══════════════ */}
-        {page === "teams" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-            <PageTitle title="Team Dashboard" sub={standings.length > 0 ? `Live standings — ${standings.length} teams` : "Loading live standings…"} />
-            {/* Live standings table */}
-            {featuredStandings.length > 0 && (
-              <div className="card" style={{ overflow: "hidden" }}>
-                <div style={{ padding: "20px 24px 0", marginBottom: 4 }}>
-                  <span className="section-title">Featured Teams — Live Standings</span>
-                </div>
-                <div style={{ overflowX: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
-                    <thead>
-                      <tr style={{ background: "#111c2d", color: "#64748b" }}>
-                        {["Team","Conference","Division","W","L","OT","GF","GA","GDiff","Pts%"].map((h) => (
-                          <th key={h} style={{ padding: "12px 16px", fontWeight: 600, fontSize: 12, textTransform: "uppercase", letterSpacing: ".06em", textAlign: "left" }}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {featuredStandings.map((s) => {
-                        const abbr = s.teamAbbrev?.default;
-                        const gf   = s.goalFor ?? 0;
-                        const ga   = s.goalAgainst ?? 0;
-                        return (
-                          <tr key={abbr} style={{ borderTop: "1px solid #1e2d40" }}>
-                            <td style={{ padding: "13px 16px", fontWeight: 700 }}>{s.teamName?.default ?? abbr}</td>
-                            <td style={{ color: "#64748b" }}>{s.conferenceName}</td>
-                            <td style={{ color: "#64748b" }}>{s.divisionName}</td>
-                            <td style={{ fontWeight: 700, color: "#22d3ee" }}>{s.wins}</td>
-                            <td>{s.losses}</td>
-                            <td>{s.otLosses}</td>
-                            <td>{gf}</td>
-                            <td>{ga}</td>
-                            <td style={{ color: gf - ga > 0 ? "#4ade80" : "#f87171", fontWeight: 700 }}>{gf - ga > 0 ? "+" : ""}{gf - ga}</td>
-                            <td><span className="pill">{ptsPct(s.wins, s.otLosses, s.gamesPlayed)}%</span></td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-            {/* Roster cards per team */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 20 }}>
-              {FEATURED_TEAMS.map((abbr) => {
-                const roster = rosters[abbr];
-                return (
-                  <div key={abbr} className="card" style={{ padding: 22 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-                      <span className="section-title">{abbr}</span>
-                      {roster && <span className="pill">{roster.length} players</span>}
-                    </div>
-                    {roster ? (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 260, overflowY: "auto" }}>
-                        {roster.map((p) => (
-                          <div key={p.id} style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "#111c2d", borderRadius: 8 }}>
-                            <span style={{ fontSize: 13, fontWeight: 600 }}>{p.name}</span>
-                            <span style={{ fontSize: 12, color: "#64748b" }}>#{p.sweaterNumber} · {p.position}</span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div style={{ color: "#475569", fontSize: 13 }}>Loading roster…</div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* ══════════════ COMPARE ══════════════ */}
-        {page === "compare" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-            <PageTitle title="Player Compare" sub="Head-to-head breakdown across goals, assists, points, shots, and rating." />
-            <div className="card" style={{ padding: 24, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-              {[["Player A", compareA, setCompareA], ["Player B", compareB, setCompareB]].map(([label, player, setter]) => (
-                <div key={label}>
-                  <div style={{ fontSize: 12, color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 8 }}>{label}</div>
-                  <select value={player.id} onChange={(e) => { const found = enrichedPlayers.find((p) => p.id === Number(e.target.value)); if (found) setter(found); }} style={{ width: "100%" }}>
-                    {enrichedPlayers.map((p) => <option key={p.id} value={p.id}>{p.name} — {p.team}</option>)}
-                  </select>
-                  <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                    {[["Points", player.pts],["Goals", player.g],["Assists", player.a],["Rating", calcRating(player)]].map(([l, v]) => (
-                      <div key={l} className="mini-stat">
-                        <div className="label">{l}</div>
-                        <div className="value" style={{ color: "#22d3ee" }}>{v}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="card" style={{ padding: 28 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 20 }}>
-                <Zap size={18} color="#22d3ee" />
-                <span className="section-title">Comparison Chart</span>
-              </div>
-              <ResponsiveContainer width="100%" height={320}>
-                <BarChart data={compareData} barGap={6}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#1e2d40" />
-                  <XAxis dataKey="stat" tick={{ fill: "#64748b", fontSize: 12 }} />
-                  <YAxis tick={{ fill: "#64748b", fontSize: 12 }} />
-                  <Tooltip contentStyle={{ background: "#0d1623", border: "1px solid #1e2d40", borderRadius: 8 }} />
-                  <Legend />
-                  <Bar dataKey={compareA.name} fill="#22d3ee" radius={[4,4,0,0]} />
-                  <Bar dataKey={compareB.name} fill="#818cf8" radius={[4,4,0,0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        )}
       </main>
     </div>
   );
