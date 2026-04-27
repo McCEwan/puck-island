@@ -7,6 +7,20 @@ const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_KE
 const NHL = 'https://api-web.nhle.com/v1';
 const HEADERS = { 'User-Agent': 'Mozilla/5.0 (compatible; puck-island-sync/1.0)' };
 
+const TEAM_NAME_TO_ABBREV: Record<string, string> = {
+  'Anaheim Ducks': 'ana', 'Boston Bruins': 'bos', 'Buffalo Sabres': 'buf',
+  'Calgary Flames': 'cgy', 'Carolina Hurricanes': 'car', 'Chicago Blackhawks': 'chi',
+  'Colorado Avalanche': 'col', 'Columbus Blue Jackets': 'cbj', 'Dallas Stars': 'dal',
+  'Detroit Red Wings': 'det', 'Edmonton Oilers': 'edm', 'Florida Panthers': 'fla',
+  'Los Angeles Kings': 'lak', 'Minnesota Wild': 'min', 'Montréal Canadiens': 'mtl',
+  'Montreal Canadiens': 'mtl', 'Nashville Predators': 'nsh', 'New Jersey Devils': 'njd',
+  'New York Islanders': 'nyi', 'New York Rangers': 'nyr', 'Ottawa Senators': 'ott',
+  'Philadelphia Flyers': 'phi', 'Pittsburgh Penguins': 'pit', 'San Jose Sharks': 'sjs',
+  'Seattle Kraken': 'sea', 'St. Louis Blues': 'stl', 'Tampa Bay Lightning': 'tbl',
+  'Toronto Maple Leafs': 'tor', 'Utah Hockey Club': 'uta', 'Vancouver Canucks': 'van',
+  'Vegas Golden Knights': 'vgk', 'Washington Capitals': 'wsh', 'Winnipeg Jets': 'wpg',
+};
+
 const ALL_TEAMS = [
   'TOR','EDM','COL','NYR','VAN','BOS','CAR','DAL','FLA','VGK',
   'NJD','SEA','MIN','PIT','LAK','WPG','ANA','OTT','CBJ','BUF',
@@ -106,16 +120,15 @@ async function syncAllPlayerStats() {
 
       const rows = [];
       for (const season of SEASONS) {
-        // Use filter (not find) so traded players get one row per team stint
+        // Regular-season NHL stints only (gameTypeId 2), one row per team
         const stints = data.seasonTotals.filter(
-          (t: any) => t.season === season.code && t.leagueAbbrev === 'NHL'
+          (t: any) => t.season === season.code && t.leagueAbbrev === 'NHL' && t.gameTypeId === 2
         );
         if (stints.length === 0) continue;
 
         for (const s of stints) {
-          const abbr = s.teamAbbrevs?.toLowerCase() ?? null;
-          // Skip aggregate rows (e.g. "VAN/MIN" or more than one team in the abbrev)
-          if (abbr && abbr.includes('/')) continue;
+          const abbr = TEAM_NAME_TO_ABBREV[s.teamName?.default] ?? null;
+          if (!abbr) continue; // skip if team name not recognised
 
           rows.push({
             player_id:    player.id,

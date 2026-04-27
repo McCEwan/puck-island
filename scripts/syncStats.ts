@@ -6,6 +6,20 @@ import { createClient } from '@supabase/supabase-js';
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_KEY!);
 const HEADERS  = { 'User-Agent': 'Mozilla/5.0 (compatible; puck-island-sync/1.0)' };
 
+const TEAM_NAME_TO_ABBREV: Record<string, string> = {
+  'Anaheim Ducks': 'ana', 'Boston Bruins': 'bos', 'Buffalo Sabres': 'buf',
+  'Calgary Flames': 'cgy', 'Carolina Hurricanes': 'car', 'Chicago Blackhawks': 'chi',
+  'Colorado Avalanche': 'col', 'Columbus Blue Jackets': 'cbj', 'Dallas Stars': 'dal',
+  'Detroit Red Wings': 'det', 'Edmonton Oilers': 'edm', 'Florida Panthers': 'fla',
+  'Los Angeles Kings': 'lak', 'Minnesota Wild': 'min', 'Montréal Canadiens': 'mtl',
+  'Montreal Canadiens': 'mtl', 'Nashville Predators': 'nsh', 'New Jersey Devils': 'njd',
+  'New York Islanders': 'nyi', 'New York Rangers': 'nyr', 'Ottawa Senators': 'ott',
+  'Philadelphia Flyers': 'phi', 'Pittsburgh Penguins': 'pit', 'San Jose Sharks': 'sjs',
+  'Seattle Kraken': 'sea', 'St. Louis Blues': 'stl', 'Tampa Bay Lightning': 'tbl',
+  'Toronto Maple Leafs': 'tor', 'Utah Hockey Club': 'uta', 'Vancouver Canucks': 'van',
+  'Vegas Golden Knights': 'vgk', 'Washington Capitals': 'wsh', 'Winnipeg Jets': 'wpg',
+};
+
 // Only re-sync the two most recent seasons so traded players get correct stints
 const TARGET_SEASONS = [
   { id: '2025-26', code: 20252026 },
@@ -31,14 +45,13 @@ async function main() {
       const rows: any[] = [];
       for (const season of TARGET_SEASONS) {
         const stints = data.seasonTotals.filter(
-          (t: any) => t.season === season.code && t.leagueAbbrev === 'NHL'
+          (t: any) => t.season === season.code && t.leagueAbbrev === 'NHL' && t.gameTypeId === 2
         );
         if (stints.length === 0) continue;
 
         for (const s of stints) {
-          const abbr = s.teamAbbrevs?.toLowerCase() ?? null;
-          // Skip aggregate rows like "VAN/MIN"
-          if (abbr && abbr.includes('/')) continue;
+          const abbr = TEAM_NAME_TO_ABBREV[s.teamName?.default] ?? null;
+          if (!abbr) continue;
 
           rows.push({
             player_id:    player.id,

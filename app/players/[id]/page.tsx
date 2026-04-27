@@ -16,6 +16,12 @@ const SEASONS_ORDERED = [
   '2019-20','2020-21','2021-22','2022-23','2023-24','2024-25','2025-26'
 ];
 
+function ordinal(n: number): string {
+  const s = ['th', 'st', 'nd', 'rd'];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
 function calcRating(gp, pts, g, shots) {
   if (gp === 0) return 0;
   return Math.round(((pts/gp)*45 + (g/gp)*25 + (shots/gp)*5) * 10) / 10;
@@ -49,7 +55,7 @@ export default function PlayerDetailPage() {
 
       // Fetch percentiles for each season with enough games
       const seasonIds = statsData
-        .filter((s) => s.gp >= 20)
+        .filter((s) => s.gp >= 30)
         .map((s) => s.season_id);
 
       const pctResults = await Promise.all(
@@ -156,16 +162,18 @@ export default function PlayerDetailPage() {
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               {[
-                { label: "Overall",     value: ratings.percentiles.overall, color: "#f59e0b" },
-                { label: "5v5 Offense", value: ratings.percentiles.offense, color: "#22d3ee" },
-                { label: "5v5 Defense", value: ratings.percentiles.defense, color: "#4ade80" },
+                { label: "Overall",       value: ratings.percentiles.overall,      color: "#f59e0b" },
+                { label: "5v5 Offense",   value: ratings.percentiles.offense,      color: "#22d3ee" },
+                { label: "5v5 Defense",   value: ratings.percentiles.defense,      color: "#4ade80" },
+                { label: "Power Play",    value: ratings.percentiles.powerPlay,    color: "#818cf8" },
+                { label: "Penalty Kill",  value: ratings.percentiles.penaltyKill,  color: "#f87171" },
               ].map(({ label, value, color }) => (
                 <div key={label}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
                     <span style={{ fontSize: 13, fontWeight: 600, color: "#94a3b8" }}>{label}</span>
                     {value !== null ? (
                       <span style={{ fontSize: 13, fontWeight: 800, color }}>
-                        {value}th percentile
+                        {ordinal(value)} percentile
                       </span>
                     ) : (
                       <span style={{ fontSize: 12, color: "#475569" }}>
@@ -226,7 +234,7 @@ export default function PlayerDetailPage() {
                 <Tooltip
                   contentStyle={{ background: "#0d1623", border: "1px solid #1e2d40", borderRadius: 8 }}
                   formatter={(value: any, name: string) =>
-                    value !== null ? [`${value}th percentile`, name] : ["No data", name]
+                    value !== null ? [`${ordinal(value)} percentile`, name] : ["No data", name]
                   }
                 />
                 <Line

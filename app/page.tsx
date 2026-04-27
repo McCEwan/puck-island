@@ -72,6 +72,12 @@ const MOCK_PLAYERS = [
 // ─────────────────────────────────────────────
 // HELPERS
 // ─────────────────────────────────────────────
+function ordinal(n: number): string {
+  const s = ['th', 'st', 'nd', 'rd'];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
 function calcRating(p) {
   const ppg      = p.pts / p.gp;
   const gpg      = p.g   / p.gp;
@@ -101,7 +107,7 @@ export default function PuckIsland() {
   const [query,       setQuery]       = useState("");
   const [teamFilter,  setTeamFilter]  = useState("ALL");
   const [posFilter,   setPosFilter]   = useState("ALL");
-  const [minGP,       setMinGP]       = useState(0);
+  const [minGP,       setMinGP]       = useState(30);
   const [sortKey,     setSortKey]     = useState("pts");
   const [statSortKey,    setStatSortKey]    = useState("pts");
   const [statSortDir,    setStatSortDir]    = useState("desc");
@@ -128,7 +134,7 @@ export default function PuckIsland() {
   const [dbTeams,         setDbTeams]         = useState([]);
   const [dbPlayers,       setDbPlayers]       = useState([]);
   const [playerStats,     setPlayerStats]     = useState([]);
-  const [listPercentiles, setListPercentiles] = useState<Record<number, { overall: number | null, offense: number | null, defense: number | null }>>({});
+  const [listPercentiles, setListPercentiles] = useState<Record<number, { overall: number | null, offense: number | null, defense: number | null, powerPlay: number | null, penaltyKill: number | null }>>({});
   const [loadingMsg,      setLoadingMsg]      = useState("Connecting to NHL API…");
 
   useEffect(() => {
@@ -270,9 +276,11 @@ export default function PuckIsland() {
           shots,
           shPct:             shots > 0 ? Number(((g / shots) * 100).toFixed(1)) : 0,
           ppg:               gp    > 0 ? Number((pts / gp).toFixed(2))           : 0,
-          offensePercentile: listPercentiles[pid]?.offense ?? null,
-          defensePercentile: listPercentiles[pid]?.defense ?? null,
-          overallPercentile: listPercentiles[pid]?.overall ?? null,
+          offensePercentile:  listPercentiles[pid]?.offense     ?? null,
+          defensePercentile:  listPercentiles[pid]?.defense     ?? null,
+          overallPercentile:  listPercentiles[pid]?.overall     ?? null,
+          ppPercentile:       listPercentiles[pid]?.powerPlay   ?? null,
+          pkPercentile:       listPercentiles[pid]?.penaltyKill ?? null,
         };
       })
       .filter(p => p.gp >= Math.max(1, minGP))
@@ -282,7 +290,7 @@ export default function PuckIsland() {
       .filter(p => query === '' || p.name.toLowerCase().includes(query.toLowerCase()))
       .sort((a, b) => {
         const dir = statSortDir === 'desc' ? -1 : 1;
-        if (sortKey === 'offensePercentile' || sortKey === 'defensePercentile' || sortKey === 'overallPercentile') {
+        if (['offensePercentile','defensePercentile','overallPercentile','ppPercentile','pkPercentile'].includes(sortKey)) {
           const aVal = (a as any)[sortKey] ?? -1;
           const bVal = (b as any)[sortKey] ?? -1;
           return (bVal - aVal) * dir;
@@ -464,6 +472,8 @@ export default function PuckIsland() {
                 <option value="offensePercentile">Sort: Offense Rating</option>
                 <option value="defensePercentile">Sort: Defense Rating</option>
                 <option value="overallPercentile">Sort: Overall Rating</option>
+                <option value="ppPercentile">Sort: Power Play</option>
+                <option value="pkPercentile">Sort: Penalty Kill</option>
               </select>
             </div>
             <div className="card" style={{ overflow: "hidden" }}>
@@ -484,6 +494,8 @@ export default function PuckIsland() {
                         { label: "PPG",      key: "ppg" },
                         { label: "OFF RTG",  key: "offensePercentile" },
                         { label: "DEF RTG",  key: "defensePercentile" },
+                        { label: "PP RTG",   key: "ppPercentile" },
+                        { label: "PK RTG",   key: "pkPercentile" },
                         { label: "OVR RTG",  key: "overallPercentile" },
                       ].map(({ label, key }) => (
                         <th
@@ -534,17 +546,27 @@ export default function PuckIsland() {
                         <td>{p.ppg}</td>
                         <td>
                           {p.offensePercentile !== null
-                            ? <span className="pill" style={{ background: "#22d3ee15", color: "#22d3ee" }}>{p.offensePercentile}th</span>
+                            ? <span className="pill" style={{ background: "#22d3ee15", color: "#22d3ee" }}>{ordinal(p.offensePercentile)}</span>
                             : <span style={{ color: "#475569", fontSize: 12 }}>—</span>}
                         </td>
                         <td>
                           {p.defensePercentile !== null
-                            ? <span className="pill" style={{ background: "#4ade8015", color: "#4ade80" }}>{p.defensePercentile}th</span>
+                            ? <span className="pill" style={{ background: "#4ade8015", color: "#4ade80" }}>{ordinal(p.defensePercentile)}</span>
+                            : <span style={{ color: "#475569", fontSize: 12 }}>—</span>}
+                        </td>
+                        <td>
+                          {p.ppPercentile !== null
+                            ? <span className="pill" style={{ background: "#818cf815", color: "#818cf8" }}>{ordinal(p.ppPercentile)}</span>
+                            : <span style={{ color: "#475569", fontSize: 12 }}>—</span>}
+                        </td>
+                        <td>
+                          {p.pkPercentile !== null
+                            ? <span className="pill" style={{ background: "#f8718115", color: "#f87171" }}>{ordinal(p.pkPercentile)}</span>
                             : <span style={{ color: "#475569", fontSize: 12 }}>—</span>}
                         </td>
                         <td>
                           {p.overallPercentile !== null
-                            ? <span className="pill" style={{ background: "#f59e0b15", color: "#f59e0b" }}>{p.overallPercentile}th</span>
+                            ? <span className="pill" style={{ background: "#f59e0b15", color: "#f59e0b" }}>{ordinal(p.overallPercentile)}</span>
                             : <span style={{ color: "#475569", fontSize: 12 }}>—</span>}
                         </td>
                       </tr>

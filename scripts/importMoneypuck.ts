@@ -66,11 +66,13 @@ async function importFile(filePath: string) {
       fa:           parseFloat(r.OnIce_A_unblockedShotAttempts) || 0,
       scf:          parseFloat(r.OnIce_F_highDangerxGoals) || 0,
       sca:          parseFloat(r.OnIce_A_highDangerxGoals) || 0,
-      points:       parseFloat(r.I_F_points) || 0,
-      goals:        parseFloat(r.I_F_goals) || 0,
-      shots_blocked:  parseFloat(r.shotsBlockedByPlayer)    || 0,
-      on_ice_xg_pct:  parseFloat(r.onIce_xGoalsPercentage)  || 50,
-      off_ice_xg_pct: parseFloat(r.offIce_xGoalsPercentage) || 50,
+      points:          parseFloat(r.I_F_points)              || 0,
+      goals:           parseFloat(r.I_F_goals)               || 0,
+      primary_assists: parseFloat(r.I_F_primaryAssists)      || 0,
+      individual_xg:   parseFloat(r.I_F_xGoals)              || 0,
+      shots_blocked:   parseFloat(r.shotsBlockedByPlayer)    || 0,
+      on_ice_xg_pct:   parseFloat(r.onIce_xGoalsPercentage)  || 50,
+      off_ice_xg_pct:  parseFloat(r.offIce_xGoalsPercentage) || 50,
     });
   }
 
