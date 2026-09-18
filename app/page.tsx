@@ -22,15 +22,6 @@ const NHLApi = {
 
 };
 
-// ─────────────────────────────────────────────
-// HELPERS
-// ─────────────────────────────────────────────
-function ordinal(n: number): string {
-  const s = ['th', 'st', 'nd', 'rd'];
-  const v = n % 100;
-  return n + (s[(v - 20) % 10] || s[v] || s[0]);
-}
-
 
 // ─────────────────────────────────────────────
 // MAIN COMPONENT
@@ -54,7 +45,6 @@ export default function PuckIsland() {
   // ── Real NHL data ──
   const [dbTeams,         setDbTeams]         = useState([]);
   const [playerStats,     setPlayerStats]     = useState([]);
-  const [listPercentiles, setListPercentiles] = useState<Record<number, { overall: number | null, offense: number | null, defense: number | null, powerPlay: number | null, penaltyKill: number | null }>>({});
   const [warStats,        setWarStats]        = useState<Record<number, { war: number }>>({});
   const [loadingMsg,      setLoadingMsg]      = useState("Connecting to NHL API…");
 
@@ -67,12 +57,6 @@ export default function PuckIsland() {
         const stats = await NHLApi.getPlayerStats(selectedSeason);
         setPlayerStats(stats);
         setLoadingMsg("Live NHL data loaded ✓");
-
-        // Single bulk call for all player ratings
-        const bulkRes = await fetch(`/api/ratings/bulk?season=${selectedSeason}`);
-        if (bulkRes.ok) {
-          setListPercentiles(await bulkRes.json());
-        }
 
         const warRes = await fetch(`/api/war?season=${selectedSeason}`);
         if (warRes.ok) {
@@ -96,17 +80,14 @@ export default function PuckIsland() {
   }, [selectedSeason]);
 
   useEffect(() => {
-    async function refreshBulkRatings() {
-      const res = await fetch(`/api/ratings/bulk?season=${selectedSeason}`);
-      if (res.ok) setListPercentiles(await res.json());
-
+    async function refreshWar() {
       const warRes = await fetch(`/api/war?season=${selectedSeason}`);
       if (warRes.ok) {
         const warJson = await warRes.json();
         setWarStats(warJson.players ?? {});
       }
     }
-    refreshBulkRatings();
+    refreshWar();
   }, [selectedSeason]);
 
 
@@ -166,11 +147,6 @@ export default function PuckIsland() {
           shots,
           shPct:             shots > 0 ? Number(((g / shots) * 100).toFixed(1)) : 0,
           ppg:               gp    > 0 ? Number((pts / gp).toFixed(2))           : 0,
-          offensePercentile:  listPercentiles[pid]?.offense     ?? null,
-          defensePercentile:  listPercentiles[pid]?.defense     ?? null,
-          overallPercentile:  listPercentiles[pid]?.overall     ?? null,
-          ppPercentile:       listPercentiles[pid]?.powerPlay   ?? null,
-          pkPercentile:       listPercentiles[pid]?.penaltyKill ?? null,
           war:                warStats[pid]?.war ?? null,
         };
       })
@@ -181,11 +157,6 @@ export default function PuckIsland() {
       .filter(p => query === '' || p.name.toLowerCase().includes(query.toLowerCase()))
       .sort((a, b) => {
         const dir = statSortDir === 'desc' ? -1 : 1;
-        if (['offensePercentile','defensePercentile','overallPercentile','ppPercentile','pkPercentile'].includes(sortKey)) {
-          const aVal = (a as any)[sortKey] ?? -1;
-          const bVal = (b as any)[sortKey] ?? -1;
-          return (bVal - aVal) * dir;
-        }
         if (sortKey === 'war') {
           const aVal = (a as any).war ?? -999;
           const bVal = (b as any).war ?? -999;
@@ -193,7 +164,7 @@ export default function PuckIsland() {
         }
         return (Number((a as any)[sortKey]) - Number((b as any)[sortKey])) * dir;
       });
-  }, [playerStats, sortKey, statSortKey, statSortDir, listPercentiles, warStats, query, teamFilter, posFilter, minGP]);
+  }, [playerStats, sortKey, statSortKey, statSortDir, warStats, query, teamFilter, posFilter, minGP]);
 
 
   // ─────────────────────────────────────────────
@@ -274,93 +245,53 @@ export default function PuckIsland() {
             {/* ── Formula Documentation ── */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 20 }}>
 
-              {/* Offense */}
+              {/* 5v5 Offense & Defense */}
               <div className="card" style={{ padding: 24 }}>
-                <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: "#22d3ee", marginBottom: 4 }}>5v5 Offense</div>
-                <div style={{ fontSize: 12, color: "#475569", marginBottom: 16 }}>Same formula for forwards and defensemen · min 200 min 5v5 ice</div>
+                <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: "#22d3ee", marginBottom: 4 }}>5v5 Offense &amp; Defense</div>
+                <div style={{ fontSize: 12, color: "#475569", marginBottom: 16 }}>Goals above replacement · min 200 min 5v5 ice</div>
                 {[
-                  { stat: "Primary Assists / GP",  weight: "35%", desc: "Direct passes leading to goals — most repeatable offensive metric" },
-                  { stat: "Individual xG / 60",    weight: "30%", desc: "Quality of shots you personally generate per 60 min" },
-                  { stat: "5v5 Points / 60",       weight: "20%", desc: "Overall even-strength scoring rate" },
-                  { stat: "On-ice xGF / 60",       weight: "15%", desc: "Expected goals for while you're on the ice" },
-                ].map(({ stat, weight, desc }) => (
+                  { stat: "Offense GAR",  color: "#22d3ee", desc: "(on-ice xGF/60 − replacement xGF/60) × ice time. Replacement = TOI-weighted avg of the bottom ⅓ of the position group by ice time." },
+                  { stat: "Defense GAR",  color: "#4ade80", desc: "(replacement xGA/60 − on-ice xGA/60) × ice time — inverted, since fewer expected goals against is better." },
+                ].map(({ stat, color, desc }) => (
                   <div key={stat} style={{ marginBottom: 12 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 3 }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: "#e2e8f0" }}>{stat}</span>
-                      <span style={{ fontSize: 13, fontWeight: 800, color: "#22d3ee" }}>{weight}</span>
-                    </div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color, marginBottom: 3 }}>{stat}</div>
                     <div style={{ fontSize: 11, color: "#475569", lineHeight: 1.4 }}>{desc}</div>
                   </div>
                 ))}
               </div>
 
-              {/* Defense — Forwards */}
+              {/* Special Teams */}
               <div className="card" style={{ padding: 24 }}>
-                <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: "#4ade80", marginBottom: 4 }}>5v5 Defense — Forwards</div>
-                <div style={{ fontSize: 12, color: "#475569", marginBottom: 16 }}>Min 200 min 5v5 ice · lower-is-better stats are inverted</div>
+                <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: "#818cf8", marginBottom: 4 }}>Special Teams</div>
+                <div style={{ fontSize: 12, color: "#475569", marginBottom: 16 }}>Same GAR method as 5v5, own replacement pool · min 30s/game ice</div>
                 {[
-                  { stat: "Relative xG%",      weight: "35%", desc: "How much the team's xG ratio improves with you on ice vs off" },
-                  { stat: "xGA / 60",          weight: "25%", desc: "Expected goals against per 60 while on ice (lower = better)" },
-                  { stat: "HD xGA / 60",       weight: "20%", desc: "High-danger expected goals against (lower = better)" },
-                  { stat: "Corsi Against / 60",weight: "20%", desc: "Shot attempts against per 60 (lower = better)" },
-                ].map(({ stat, weight, desc }) => (
+                  { stat: "Power Play GAR",   color: "#818cf8", desc: "(on-ice PP xGF/60 − replacement PP xGF/60) × PP ice time." },
+                  { stat: "Penalty Kill GAR", color: "#f87171", desc: "(replacement PK xGA/60 − on-ice PK xGA/60) × PK ice time — inverted." },
+                ].map(({ stat, color, desc }) => (
                   <div key={stat} style={{ marginBottom: 12 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 3 }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: "#e2e8f0" }}>{stat}</span>
-                      <span style={{ fontSize: 13, fontWeight: 800, color: "#4ade80" }}>{weight}</span>
-                    </div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color, marginBottom: 3 }}>{stat}</div>
                     <div style={{ fontSize: 11, color: "#475569", lineHeight: 1.4 }}>{desc}</div>
                   </div>
                 ))}
               </div>
 
-              {/* Defense — Defensemen */}
+              {/* Finishing Adjustment */}
               <div className="card" style={{ padding: 24 }}>
-                <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: "#4ade80", marginBottom: 4 }}>5v5 Defense — Defensemen</div>
-                <div style={{ fontSize: 12, color: "#475569", marginBottom: 16 }}>Min 200 min 5v5 ice · lower-is-better stats are inverted</div>
-                {[
-                  { stat: "Relative xG%",      weight: "30%", desc: "Team xG ratio improvement with you on ice vs off" },
-                  { stat: "xGA / 60",          weight: "20%", desc: "Expected goals against per 60 (lower = better)" },
-                  { stat: "HD xGA / 60",       weight: "15%", desc: "High-danger expected goals against (lower = better)" },
-                  { stat: "Corsi Against / 60",weight: "15%", desc: "Shot attempts against per 60 (lower = better)" },
-                  { stat: "Blocked Shots / 60",weight: "10%", desc: "Shots blocked per 60 minutes" },
-                  { stat: "On-ice xGF / 60",   weight: "10%", desc: "Offensive contribution while defending" },
-                ].map(({ stat, weight, desc }) => (
-                  <div key={stat} style={{ marginBottom: 12 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 3 }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: "#e2e8f0" }}>{stat}</span>
-                      <span style={{ fontSize: 13, fontWeight: 800, color: "#4ade80" }}>{weight}</span>
-                    </div>
-                    <div style={{ fontSize: 11, color: "#475569", lineHeight: 1.4 }}>{desc}</div>
-                  </div>
-                ))}
+                <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: "#f59e0b", marginBottom: 4 }}>Finishing Adjustment</div>
+                <div style={{ fontSize: 12, color: "#475569", marginBottom: 16 }}>Bayesian-shrunk goals vs. expectation</div>
+                <div style={{ fontSize: 11, color: "#475569", lineHeight: 1.6 }}>
+                  Raw rate = (actual goals − individual xG) ÷ shots.<br/><br/>
+                  Shrunk toward the league-average finishing rate based on shot volume — full credibility at 100 shots, less for smaller samples — so a hot streak on 20 shots doesn't get treated the same as a real skill signal over a full season.
+                </div>
               </div>
 
-              {/* Overall */}
+              {/* Wins Conversion */}
               <div className="card" style={{ padding: 24 }}>
-                <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: "#f59e0b", marginBottom: 4 }}>Overall Rating</div>
-                <div style={{ fontSize: 12, color: "#475569", marginBottom: 16 }}>Weighted combination of 5v5 offense + defense · percentile ranked within position group</div>
-                {[
-                  { pos: "Forwards",   off: "80%", def: "20%" },
-                  { pos: "Defensemen", off: "35%", def: "65%" },
-                ].map(({ pos, off, def }) => (
-                  <div key={pos} style={{ marginBottom: 16, background: "#111c2d", borderRadius: 10, padding: 14 }}>
-                    <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 10, color: "#e2e8f0" }}>{pos}</div>
-                    <div style={{ display: "flex", gap: 12 }}>
-                      <div style={{ flex: 1, textAlign: "center" }}>
-                        <div style={{ fontSize: 11, color: "#64748b", marginBottom: 2 }}>Offense</div>
-                        <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, color: "#22d3ee" }}>{off}</div>
-                      </div>
-                      <div style={{ flex: 1, textAlign: "center" }}>
-                        <div style={{ fontSize: 11, color: "#64748b", marginBottom: 2 }}>Defense</div>
-                        <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, color: "#4ade80" }}>{def}</div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-                <div style={{ fontSize: 11, color: "#475569", marginTop: 8 }}>
-                  PP rating: PP pts/60 (40%) + PP xGF/60 (35%) + PP primary A/60 (25%) · min 30s PP/game<br/>
-                  PK rating: xGA/60 (45%) + CA/60 (30%) + HD xGA/60 (25%) · min 30s PK/game
+                <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: "#4ade80", marginBottom: 4 }}>Goals → Wins</div>
+                <div style={{ fontSize: 12, color: "#475569", marginBottom: 16 }}>WAR = total goals above replacement × wins-per-goal</div>
+                <div style={{ fontSize: 11, color: "#475569", lineHeight: 1.6 }}>
+                  WAR = (Offense + Defense + PP + PK + Finishing) GAR × wins-per-goal.<br/><br/>
+                  Wins-per-goal isn't assumed — it's fit from every team-season since 2000-01 (regressing wins on goal differential, both normalized to an 82-game season), landing at roughly <strong style={{ color: "#e2e8f0" }}>1 win per 5.7 goals</strong>, in line with the standard hockey-analytics heuristic.
                 </div>
               </div>
 
@@ -424,11 +355,6 @@ export default function PuckIsland() {
                 <option value="g">Sort: Goals</option>
                 <option value="a">Sort: Assists</option>
                 <option value="shots">Sort: Shots</option>
-                <option value="offensePercentile">Sort: Offense Rating</option>
-                <option value="defensePercentile">Sort: Defense Rating</option>
-                <option value="overallPercentile">Sort: Overall Rating</option>
-                <option value="ppPercentile">Sort: Power Play</option>
-                <option value="pkPercentile">Sort: Penalty Kill</option>
                 <option value="war">Sort: WAR</option>
               </select>
             </div>
@@ -448,11 +374,6 @@ export default function PuckIsland() {
                         { label: "Shots",    key: "shots" },
                         { label: "SH%",      key: "shPct" },
                         { label: "PPG",      key: "ppg" },
-                        { label: "OFF RTG",  key: "offensePercentile" },
-                        { label: "DEF RTG",  key: "defensePercentile" },
-                        { label: "PP RTG",   key: "ppPercentile" },
-                        { label: "PK RTG",   key: "pkPercentile" },
-                        { label: "OVR RTG",  key: "overallPercentile" },
                         { label: "WAR",      key: "war" },
                       ].map(({ label, key }) => (
                         <th
@@ -501,31 +422,6 @@ export default function PuckIsland() {
                         <td>{p.shots}</td>
                         <td>{p.shPct}%</td>
                         <td>{p.ppg}</td>
-                        <td>
-                          {p.offensePercentile !== null
-                            ? <span className="pill" style={{ background: "#22d3ee15", color: "#22d3ee" }}>{ordinal(p.offensePercentile)}</span>
-                            : <span style={{ color: "#475569", fontSize: 12 }}>—</span>}
-                        </td>
-                        <td>
-                          {p.defensePercentile !== null
-                            ? <span className="pill" style={{ background: "#4ade8015", color: "#4ade80" }}>{ordinal(p.defensePercentile)}</span>
-                            : <span style={{ color: "#475569", fontSize: 12 }}>—</span>}
-                        </td>
-                        <td>
-                          {p.ppPercentile !== null
-                            ? <span className="pill" style={{ background: "#818cf815", color: "#818cf8" }}>{ordinal(p.ppPercentile)}</span>
-                            : <span style={{ color: "#475569", fontSize: 12 }}>—</span>}
-                        </td>
-                        <td>
-                          {p.pkPercentile !== null
-                            ? <span className="pill" style={{ background: "#f8718115", color: "#f87171" }}>{ordinal(p.pkPercentile)}</span>
-                            : <span style={{ color: "#475569", fontSize: 12 }}>—</span>}
-                        </td>
-                        <td>
-                          {p.overallPercentile !== null
-                            ? <span className="pill" style={{ background: "#f59e0b15", color: "#f59e0b" }}>{ordinal(p.overallPercentile)}</span>
-                            : <span style={{ color: "#475569", fontSize: 12 }}>—</span>}
-                        </td>
                         <td style={{ fontWeight: 700, color: p.war === null ? "#475569" : p.war >= 0 ? "#4ade80" : "#f87171" }}>
                           {p.war !== null ? p.war.toFixed(1) : "—"}
                         </td>
