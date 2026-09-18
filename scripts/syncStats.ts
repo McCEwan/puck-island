@@ -24,7 +24,7 @@ const TEAM_NAME_TO_ABBREV: Record<string, string> = {
   'New York Islanders': 'nyi', 'New York Rangers': 'nyr', 'Ottawa Senators': 'ott',
   'Philadelphia Flyers': 'phi', 'Pittsburgh Penguins': 'pit', 'San Jose Sharks': 'sjs',
   'Seattle Kraken': 'sea', 'St. Louis Blues': 'stl', 'Tampa Bay Lightning': 'tbl',
-  'Toronto Maple Leafs': 'tor', 'Utah Hockey Club': 'uta', 'Vancouver Canucks': 'van',
+  'Toronto Maple Leafs': 'tor', 'Utah Hockey Club': 'uta', 'Utah Mammoth': 'uta', 'Vancouver Canucks': 'van',
   'Vegas Golden Knights': 'vgk', 'Washington Capitals': 'wsh', 'Winnipeg Jets': 'wpg',
 };
 
