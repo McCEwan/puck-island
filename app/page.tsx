@@ -55,6 +55,7 @@ export default function PuckIsland() {
   const [dbTeams,         setDbTeams]         = useState([]);
   const [playerStats,     setPlayerStats]     = useState([]);
   const [listPercentiles, setListPercentiles] = useState<Record<number, { overall: number | null, offense: number | null, defense: number | null, powerPlay: number | null, penaltyKill: number | null }>>({});
+  const [warStats,        setWarStats]        = useState<Record<number, { war: number }>>({});
   const [loadingMsg,      setLoadingMsg]      = useState("Connecting to NHL API…");
 
   useEffect(() => {
@@ -71,6 +72,12 @@ export default function PuckIsland() {
         const bulkRes = await fetch(`/api/ratings/bulk?season=${selectedSeason}`);
         if (bulkRes.ok) {
           setListPercentiles(await bulkRes.json());
+        }
+
+        const warRes = await fetch(`/api/war?season=${selectedSeason}`);
+        if (warRes.ok) {
+          const warJson = await warRes.json();
+          setWarStats(warJson.players ?? {});
         }
       } catch (err) {
         setLoadingMsg("API error — showing cached data");
@@ -92,6 +99,12 @@ export default function PuckIsland() {
     async function refreshBulkRatings() {
       const res = await fetch(`/api/ratings/bulk?season=${selectedSeason}`);
       if (res.ok) setListPercentiles(await res.json());
+
+      const warRes = await fetch(`/api/war?season=${selectedSeason}`);
+      if (warRes.ok) {
+        const warJson = await warRes.json();
+        setWarStats(warJson.players ?? {});
+      }
     }
     refreshBulkRatings();
   }, [selectedSeason]);
@@ -158,6 +171,7 @@ export default function PuckIsland() {
           overallPercentile:  listPercentiles[pid]?.overall     ?? null,
           ppPercentile:       listPercentiles[pid]?.powerPlay   ?? null,
           pkPercentile:       listPercentiles[pid]?.penaltyKill ?? null,
+          war:                warStats[pid]?.war ?? null,
         };
       })
       .filter(p => p.gp >= Math.max(1, minGP))
@@ -172,9 +186,14 @@ export default function PuckIsland() {
           const bVal = (b as any)[sortKey] ?? -1;
           return (bVal - aVal) * dir;
         }
+        if (sortKey === 'war') {
+          const aVal = (a as any).war ?? -999;
+          const bVal = (b as any).war ?? -999;
+          return (bVal - aVal) * dir;
+        }
         return (Number((a as any)[sortKey]) - Number((b as any)[sortKey])) * dir;
       });
-  }, [playerStats, sortKey, statSortKey, statSortDir, listPercentiles, query, teamFilter, posFilter, minGP]);
+  }, [playerStats, sortKey, statSortKey, statSortDir, listPercentiles, warStats, query, teamFilter, posFilter, minGP]);
 
 
   // ─────────────────────────────────────────────
@@ -410,6 +429,7 @@ export default function PuckIsland() {
                 <option value="overallPercentile">Sort: Overall Rating</option>
                 <option value="ppPercentile">Sort: Power Play</option>
                 <option value="pkPercentile">Sort: Penalty Kill</option>
+                <option value="war">Sort: WAR</option>
               </select>
             </div>
             <div className="card" style={{ overflow: "hidden" }}>
@@ -433,6 +453,7 @@ export default function PuckIsland() {
                         { label: "PP RTG",   key: "ppPercentile" },
                         { label: "PK RTG",   key: "pkPercentile" },
                         { label: "OVR RTG",  key: "overallPercentile" },
+                        { label: "WAR",      key: "war" },
                       ].map(({ label, key }) => (
                         <th
                           key={label}
@@ -504,6 +525,9 @@ export default function PuckIsland() {
                           {p.overallPercentile !== null
                             ? <span className="pill" style={{ background: "#f59e0b15", color: "#f59e0b" }}>{ordinal(p.overallPercentile)}</span>
                             : <span style={{ color: "#475569", fontSize: 12 }}>—</span>}
+                        </td>
+                        <td style={{ fontWeight: 700, color: p.war === null ? "#475569" : p.war >= 0 ? "#4ade80" : "#f87171" }}>
+                          {p.war !== null ? p.war.toFixed(1) : "—"}
                         </td>
                       </tr>
                     ))}
