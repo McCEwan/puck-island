@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { getCurrentSeasonId } from '@/lib/seasons';
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -38,7 +39,7 @@ const normalizeMP = (s: any) => {
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
-  const season   = searchParams.get('season') ?? '2025-26';
+  const season   = searchParams.get('season') ?? getCurrentSeasonId();
   const mpSeason = parseInt(season.split('-')[0]);
 
   const { data: allBasic } = await supabase

@@ -2,6 +2,7 @@ import * as dotenv from "dotenv";
 dotenv.config({ path: ".env.local" });
 
 import { createClient } from '@supabase/supabase-js';
+import { getAllSeasonIds, seasonIdToCode } from '../lib/seasons';
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_KEY!);
 const NHL = 'https://api-web.nhle.com/v1';
@@ -69,33 +70,12 @@ async function syncPlayers() {
   console.log(`Players synced: ${total}`);
 }
 
-const SEASONS = [
-  { id: '2000-01', label: '2000-01', code: 20002001, start: 2000, end: 2001 },
-  { id: '2001-02', label: '2001-02', code: 20012002, start: 2001, end: 2002 },
-  { id: '2002-03', label: '2002-03', code: 20022003, start: 2002, end: 2003 },
-  { id: '2003-04', label: '2003-04', code: 20032004, start: 2003, end: 2004 },
-  { id: '2005-06', label: '2005-06', code: 20052006, start: 2005, end: 2006 },
-  { id: '2006-07', label: '2006-07', code: 20062007, start: 2006, end: 2007 },
-  { id: '2007-08', label: '2007-08', code: 20072008, start: 2007, end: 2008 },
-  { id: '2008-09', label: '2008-09', code: 20082009, start: 2008, end: 2009 },
-  { id: '2009-10', label: '2009-10', code: 20092010, start: 2009, end: 2010 },
-  { id: '2010-11', label: '2010-11', code: 20102011, start: 2010, end: 2011 },
-  { id: '2011-12', label: '2011-12', code: 20112012, start: 2011, end: 2012 },
-  { id: '2012-13', label: '2012-13', code: 20122013, start: 2012, end: 2013 },
-  { id: '2013-14', label: '2013-14', code: 20132014, start: 2013, end: 2014 },
-  { id: '2014-15', label: '2014-15', code: 20142015, start: 2014, end: 2015 },
-  { id: '2015-16', label: '2015-16', code: 20152016, start: 2015, end: 2016 },
-  { id: '2016-17', label: '2016-17', code: 20162017, start: 2016, end: 2017 },
-  { id: '2017-18', label: '2017-18', code: 20172018, start: 2017, end: 2018 },
-  { id: '2018-19', label: '2018-19', code: 20182019, start: 2018, end: 2019 },
-  { id: '2019-20', label: '2019-20', code: 20192020, start: 2019, end: 2020 },
-  { id: '2020-21', label: '2020-21', code: 20202021, start: 2020, end: 2021 },
-  { id: '2021-22', label: '2021-22', code: 20212022, start: 2021, end: 2022 },
-  { id: '2022-23', label: '2022-23', code: 20222023, start: 2022, end: 2023 },
-  { id: '2023-24', label: '2023-24', code: 20232024, start: 2023, end: 2024 },
-  { id: '2024-25', label: '2024-25', code: 20242025, start: 2024, end: 2025 },
-  { id: '2025-26', label: '2025-26', code: 20252026, start: 2025, end: 2026 },
-];
+// Generated from the current date, so a newly started season (e.g. 2026-27)
+// is picked up automatically without editing this file.
+const SEASONS = getAllSeasonIds().reverse().map(id => {
+  const startYear = parseInt(id.split('-')[0], 10);
+  return { id, label: id, code: seasonIdToCode(id), start: startYear, end: startYear + 1 };
+});
 
 async function syncSeasons() {
   const rows = SEASONS.map(s => ({

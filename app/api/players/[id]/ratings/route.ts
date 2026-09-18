@@ -1,5 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { getCurrentSeasonId } from '@/lib/seasons';
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -40,7 +41,7 @@ const normalizeMP = (s: any) => {
 export async function GET(_req: NextRequest, ctx: RouteContext<'/api/players/[id]/ratings'>) {
   const { id }    = await ctx.params;
   const { searchParams } = new URL(_req.url);
-  const season    = searchParams.get('season') ?? '2025-26';
+  const season    = searchParams.get('season') ?? getCurrentSeasonId();
   const mpSeason  = parseInt(season.split('-')[0]);
 
   const { data: player } = await supabase

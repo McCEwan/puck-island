@@ -4,6 +4,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
+import { getCurrentSeasonId, getAllSeasonIds } from "@/lib/seasons";
 
 // ─────────────────────────────────────────────
 // DATA LAYER — swap these out for Supabase queries in production
@@ -48,7 +49,7 @@ export default function PuckIsland() {
   const [sortKey,     setSortKey]     = useState("pts");
   const [statSortKey,    setStatSortKey]    = useState("pts");
   const [statSortDir,    setStatSortDir]    = useState("desc");
-  const [selectedSeason, setSelectedSeason] = useState("2025-26");
+  const [selectedSeason, setSelectedSeason] = useState(getCurrentSeasonId());
 
   // ── Real NHL data ──
   const [dbTeams,         setDbTeams]         = useState([]);
@@ -382,12 +383,7 @@ export default function PuckIsland() {
               </select>
               {/* Season */}
               <select value={selectedSeason} onChange={(e) => setSelectedSeason(e.target.value)} style={{ width: 120 }}>
-                {[
-                  '2025-26','2024-25','2023-24','2022-23','2021-22','2020-21',
-                  '2019-20','2018-19','2017-18','2016-17','2015-16','2014-15',
-                  '2013-14','2012-13','2011-12','2010-11','2009-10','2008-09',
-                  '2007-08','2006-07','2005-06','2003-04','2002-03','2001-02','2000-01'
-                ].map(s => (
+                {getAllSeasonIds().map(s => (
                   <option key={s} value={s}>{s}</option>
                 ))}
               </select>
